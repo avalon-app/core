@@ -47,9 +47,12 @@ const characterByKey = new Map(Characters.map(c => [c.key, c]))
  * 5. Sets the initial leader for the game.
  * 6. Returns the initial state of the Avalon game.
  */
-export const Create = (rule: TRule, customCharacters?: TCharacterKey[]): TAvalon => {
+export const Create = (rule: TRule, customCharacters?: TCharacterKey[], firstLeader?: number): TAvalon => {
     if (typeof rule.lancelot === "string" && (!["rule1", "rule2", "rule3"].includes(rule.lancelot) || rule.numberOfPlayer < 7)) {
         throw new Error("Invalid lancelot config")
+    }
+    if (typeof firstLeader === "number" && (!Number.isInteger(firstLeader) || firstLeader < 0 || firstLeader >= rule.numberOfPlayer)) {
+        throw new Error("Invalid first leader")
     }
     const randomCharacters = customCharacters?.length === rule.characters.length ? customCharacters : randomArray(rule.characters)
     let lancelotSwitch: boolean[] | undefined
@@ -58,9 +61,9 @@ export const Create = (rule: TRule, customCharacters?: TCharacterKey[]): TAvalon
     } else if (rule.lancelot === "rule2") {
         lancelotSwitch = RandomLancelotSwitchForRule2()
     }
-    const firstLeader = randomNumberFormRange(0, rule.numberOfPlayer - 1)
+    const leader = typeof firstLeader === "number" ? firstLeader : randomNumberFormRange(0, rule.numberOfPlayer - 1)
     const avalon: TAvalon = {
-        quests: CreateQuests(rule, firstLeader),
+        quests: CreateQuests(rule, leader),
         stage: "team",
         players: randomCharacters.flatMap(characterKey => {
             const character = characterByKey.get(characterKey)

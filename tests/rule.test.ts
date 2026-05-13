@@ -26,11 +26,11 @@ describe('defaultRuleForNumberOfPlayer', () => {
                     mode: "each"
                 },
                 each: [
-                    { numberOfMebers: 2 },
-                    { numberOfMebers: 3 },
-                    { numberOfMebers: 2 },
-                    { numberOfMebers: 3 },
-                    { numberOfMebers: 3 }
+                    { numberOfMembers: 2 },
+                    { numberOfMembers: 3 },
+                    { numberOfMembers: 2 },
+                    { numberOfMembers: 3 },
+                    { numberOfMembers: 3 }
                 ]
             }
         };
@@ -62,11 +62,11 @@ describe('defaultRuleForNumberOfPlayer', () => {
                     mode: "each"
                 },
                 each: [
-                    { numberOfMebers: 2 },
-                    { numberOfMebers: 3 },
-                    { numberOfMebers: 3 },
-                    { numberOfMebers: 4, needTwoFailure: true },
-                    { numberOfMebers: 4 }
+                    { numberOfMembers: 2 },
+                    { numberOfMembers: 3 },
+                    { numberOfMembers: 3 },
+                    { numberOfMembers: 4, needTwoFailure: true },
+                    { numberOfMembers: 4 }
                 ]
             }
         };

@@ -75,7 +75,7 @@ export type TTeam = {
  * @param numberOfPlayer The total number of players.
  * @returns The seat number of the previous player.
  */
-const previewPlayer = (seat: number, numberOfPlayer: number) => {
+const previousPlayer = (seat: number, numberOfPlayer: number) => {
     return (seat + numberOfPlayer - 1) % numberOfPlayer
 }
 
@@ -101,14 +101,14 @@ export const CreateQuests = (rule: TRule, leader: number): TQuest[] => {
         throw new Error("Invalid leader parameter")
     }
     return [0, 1, 2, 3, 4].map(idx => {
-        const ladyOfTheLake = rule.hasLadyOfTheLake && idx === 1 ? previewPlayer(leader, rule.numberOfPlayer) : undefined
+        const ladyOfTheLake = rule.hasLadyOfTheLake && idx === 1 ? previousPlayer(leader, rule.numberOfPlayer) : undefined
         return {
             teams: idx === 0 ? [{
                 leader: leader,
                 votes: [],
                 members: []
             }] : [],
-            numberOfMembers: rule.quest.each[idx].numberOfMebers,
+            numberOfMembers: rule.quest.each[idx].numberOfMembers,
             ladyOfTheLake,
             state: idx === 0 ? "inProgress" : "notStarted",
             needTwoFailure: rule.quest.each[idx].needTwoFailure
@@ -147,7 +147,12 @@ export const RecentTeam = (quests: TQuest[]) => {
  * @returns The last finished quest, or undefined if none are finished.
  */
 export const LastFinishedQuest = (quests: TQuest[]) => {
-    return [...quests].reverse().find(q => q.state === "finished")
+    for (let i = quests.length - 1; i >= 0; i--) {
+        if (quests[i].state === "finished") {
+            return quests[i]
+        }
+    }
+    return undefined
 }
 
 /**
@@ -198,9 +203,9 @@ export const CreateNextTeam = (quests: TQuest[], rule: TRule) => {
  * - If the mode is "each", it checks if there is an in-progress quest. If not, it checks for an unstarted quest.
  *   If there is an unstarted quest, it returns true. If the number of teams in the in-progress quest
  *   exceeds the maximum count of summon teams defined in the rule, it returns false.
- * - If the mode is "whole", it calculates the total number of teams across all quests that are not in the "notStarted" state.
- *   If this total exceeds the maximum count of summon teams defined in the rule, it returns false.
- * 
+ * - If the mode is "whole", it sums the total number of proposed teams across all quests.
+ *   If this total reaches the maximum count of summon teams defined in the rule, it returns false.
+ *
  * In all other cases, it returns true.
  */
 export const CanCreateNewTeam = (quests: TQuest[], rule: TRule) => {
@@ -214,10 +219,8 @@ export const CanCreateNewTeam = (quests: TQuest[], rule: TRule) => {
             return false
         }
     } else if (rule.quest.team.mode === "whole") {
-        const current = quests.filter(q => q.state !== "notStarted").reduce((acc, q) => {
-            return acc + q.teams.length - 1
-        }, 0)
-        if (current >= rule.quest.team.maxCountOfSummonTeam) {
+        const total = quests.reduce((acc, q) => acc + q.teams.length, 0)
+        if (total >= rule.quest.team.maxCountOfSummonTeam) {
             return false
         }
     }

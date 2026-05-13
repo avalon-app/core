@@ -1,5 +1,5 @@
-import { Create, UpdateRecentTeamMember, UpdateRecentTeamVote, UpdateResentQuestVote, SetNextLadyOfTheLake, TAvalon, Assassinate } from "../src/avalon"
-import { TTeam } from "../src/quest"
+import { Create, UpdateRecentTeamMember, UpdateRecentTeamVote, UpdateRecentQuestVote, SetNextLadyOfTheLake, SetExcalibur, TAvalon, Assassinate, ChangeToAssassinate } from "../src/avalon"
+import { CanCreateNewTeam, TTeam } from "../src/quest"
 import { defaultRuleForNumberOfPlayer, TRule } from "../src/rule"
 
 const createTeamVotes = (count: number, success: boolean): TTeam["votes"] => {
@@ -18,7 +18,7 @@ const runQuest = (game: TAvalon, rule: TRule, step: TStep[]) => {
         UpdateRecentTeamMember(game, member)
         UpdateRecentTeamVote(game, rule, teamVotes)
         if (questVotes) {
-            UpdateResentQuestVote(game, rule, questVotes)
+            UpdateRecentQuestVote(game, rule, questVotes)
         }
     })
 }
@@ -59,7 +59,7 @@ describe("Avalon Game", () => {
         const votes = [true, false]
         UpdateRecentTeamMember(game, [0, 1])
         UpdateRecentTeamVote(game, rule, teamVotes)
-        UpdateResentQuestVote(game, rule, votes)
+        UpdateRecentQuestVote(game, rule, votes)
         expect(game.quests[0].result?.votes).toEqual(votes)
         expect(game.quests[0].state).toBe("finished")
     })
@@ -259,5 +259,156 @@ describe("Avalon Game", () => {
             expect(lancelotGood?.alignment).toBe("good")
             expect(lancelotEvil?.alignment).toBe("evil")
         }
+    })
+
+    it("rule3 lancelots see each other but never switch", () => {
+        const rule = defaultRuleForNumberOfPlayer(7, "rule3")
+        const game = Create(rule)
+
+        const lancelotGood = game.players.find(player => player.key === "lancelot_good")
+        const lancelotEvil = game.players.find(player => player.key === "lancelot_evil")
+
+        expect(game.lancelotSwitch).toBeUndefined()
+        expect(lancelotGood?.alignment).toBe("good")
+        expect(lancelotEvil?.alignment).toBe("evil")
+
+        const lancelotVisibility = rule.characterVisibilitiesRules.find(r => r.title === "可看到的彼此")
+        expect(lancelotVisibility).toBeDefined()
+        expect(lancelotVisibility?.characters).toEqual(["lancelot_good", "lancelot_evil"])
+
+        runQuest(game, rule, [{
+            member: [0, 1],
+            teamVotes: createTeamVotes(rule.numberOfPlayer, true),
+            questVotes: [true, true]
+        }, {
+            member: [2, 3, 1],
+            teamVotes: createTeamVotes(rule.numberOfPlayer, true),
+            questVotes: [true, true, true]
+        }, {
+            member: [2, 3, 1],
+            teamVotes: createTeamVotes(rule.numberOfPlayer, true),
+            questVotes: [true, true, true]
+        }])
+
+        expect(lancelotGood?.alignment).toBe("good")
+        expect(lancelotEvil?.alignment).toBe("evil")
+    })
+
+    it("Assassinate rejects out-of-range target", () => {
+        const rule = defaultRuleForNumberOfPlayer(5)
+        const game = Create(rule)
+        runQuest(game, rule, [{
+            member: [0, 1],
+            teamVotes: createTeamVotes(rule.numberOfPlayer, true),
+            questVotes: [true, true]
+        }, {
+            member: [2, 3, 1],
+            teamVotes: createTeamVotes(rule.numberOfPlayer, true),
+            questVotes: [true, true, true]
+        }, {
+            member: [4, 1],
+            teamVotes: createTeamVotes(rule.numberOfPlayer, true),
+            questVotes: [true, true]
+        }])
+
+        expect(game.stage).toBe("assassinate")
+        expect(() => Assassinate(game, -1)).toThrow("Invalid assassination target")
+        expect(() => Assassinate(game, rule.numberOfPlayer)).toThrow("Invalid assassination target")
+        expect(() => Assassinate(game, 1.5)).toThrow("Invalid assassination target")
+    })
+
+    it("Assassinate requires assassinate stage", () => {
+        const rule = defaultRuleForNumberOfPlayer(5)
+        const game = Create(rule)
+        expect(() => Assassinate(game, 0)).toThrow("Invalid stage")
+    })
+
+    it("ChangeToAssassinate moves into assassinate stage", () => {
+        const rule = defaultRuleForNumberOfPlayer(5)
+        const game = Create(rule)
+        ChangeToAssassinate(game)
+        expect(game.stage).toBe("assassinate")
+    })
+
+    it("SetExcalibur validates rule, membership and leader", () => {
+        const rule = defaultRuleForNumberOfPlayer(5)
+        const game = Create(rule)
+        const leader = game.quests[0].teams[0].leader
+        const nonLeaderMember = (leader + 1) % rule.numberOfPlayer
+        UpdateRecentTeamMember(game, [leader, nonLeaderMember])
+
+        expect(() => SetExcalibur(game, rule, nonLeaderMember)).toThrow("Excalibur is not enabled")
+
+        const excaliburRule: TRule = { ...rule, enableExcalibur: true }
+        expect(() => SetExcalibur(game, excaliburRule, leader)).toThrow("Excalibur target cannot be the team leader")
+        const outsider = game.players.findIndex((_, i) => i !== leader && i !== nonLeaderMember)
+        expect(() => SetExcalibur(game, excaliburRule, outsider)).toThrow("Excalibur target must be a current team member")
+
+        SetExcalibur(game, excaliburRule, nonLeaderMember)
+        expect(game.quests[0].teams[0].excalibur).toBe(nonLeaderMember)
+    })
+
+    it("UpdateRecentTeamVote rejects duplicate or invalid voters", () => {
+        const rule = defaultRuleForNumberOfPlayer(5)
+        const game = Create(rule)
+        UpdateRecentTeamMember(game, [0, 1])
+        const dup: TTeam["votes"] = [
+            { player: 0, vote: true },
+            { player: 0, vote: true },
+            { player: 2, vote: true },
+            { player: 3, vote: true },
+            { player: 4, vote: true },
+        ]
+        expect(() => UpdateRecentTeamVote(game, rule, dup)).toThrow("Duplicate voter")
+
+        const outOfRange: TTeam["votes"] = [
+            { player: 0, vote: true },
+            { player: 1, vote: true },
+            { player: 2, vote: true },
+            { player: 3, vote: true },
+            { player: 9, vote: true },
+        ]
+        expect(() => UpdateRecentTeamVote(game, rule, outOfRange)).toThrow("Invalid voter")
+    })
+
+    it("SetNextLadyOfTheLake rejects out-of-range and reused seats", () => {
+        const rule = defaultRuleForNumberOfPlayer(5)
+        rule.hasLadyOfTheLake = true
+        const game = Create(rule)
+        runQuest(game, rule, [{
+            member: [0, 1],
+            teamVotes: createTeamVotes(rule.numberOfPlayer, true),
+            questVotes: [true, true]
+        }, {
+            member: [2, 3, 1],
+            teamVotes: createTeamVotes(rule.numberOfPlayer, true),
+            questVotes: [true, true, true]
+        }])
+        expect(game.stage).toBe("ladyOfTheLake")
+        expect(() => SetNextLadyOfTheLake(game, rule, -1)).toThrow("Invalid next lady of the lake")
+        expect(() => SetNextLadyOfTheLake(game, rule, rule.numberOfPlayer)).toThrow("Invalid next lady of the lake")
+        const existing = game.quests[1].ladyOfTheLake!
+        expect(() => SetNextLadyOfTheLake(game, rule, existing)).toThrow("Next lady of the lake has already held the role")
+    })
+
+    it("CanCreateNewTeam whole mode counts total proposals", () => {
+        const rule = defaultRuleForNumberOfPlayer(5)
+        const wholeRule: TRule = {
+            ...rule,
+            quest: {
+                ...rule.quest,
+                team: { maxCountOfSummonTeam: 5, mode: "whole" }
+            }
+        }
+        const game = Create(wholeRule)
+        for (let i = 0; i < 4; i++) {
+            UpdateRecentTeamMember(game, [0, 1])
+            UpdateRecentTeamVote(game, wholeRule, createTeamVotes(wholeRule.numberOfPlayer, false))
+        }
+        expect(CanCreateNewTeam(game.quests, wholeRule)).toBe(false)
+        UpdateRecentTeamMember(game, [0, 1])
+        UpdateRecentTeamVote(game, wholeRule, createTeamVotes(wholeRule.numberOfPlayer, false))
+        expect(game.result).toBe("evilWin")
+        expect(game.stage).toBe("end")
     })
 })

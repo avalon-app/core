@@ -1,7 +1,7 @@
 import { TAvalon } from './avalon';
 import { RecentTeam as recentTeam } from './quest';
 
-export { Create as CreateAvalon, UpdateRecentTeamMember, UpdateRecentTeamVote, UpdateResentQuestVote, SetNextLadyOfTheLake, Assassinate, SetExcalibur, ChangeToAssassinate } from "./avalon"
+export { Create as CreateAvalon, UpdateRecentTeamMember, UpdateRecentTeamVote, UpdateRecentQuestVote, SetNextLadyOfTheLake, Assassinate, SetExcalibur, ChangeToAssassinate } from "./avalon"
 export { defaultRuleForNumberOfPlayer as DefaultRuleForNumberOfPlayer, SupportNumberOfPlayer } from "./rule"
 export const RecentTeam = (avalon: TAvalon) => {
     return recentTeam(avalon.quests)

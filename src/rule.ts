@@ -53,7 +53,7 @@ export type TRule = {
             /**
              * The number of members required for the quest.
              */
-            numberOfMebers: number;
+            numberOfMembers: number;
 
             /**
              * Indicates if two failures are needed.
@@ -89,6 +89,12 @@ export type TRule = {
 
     /**
      * The rule for Lancelot.
+     *
+     * - `rule1`: Lancelots may switch alignment starting at the beginning of the third quest,
+     *   driven by a shuffled card pile of 2 swaps / 3 no-swaps.
+     * - `rule2`: Lancelots may switch alignment starting at the beginning of the game,
+     *   driven by a shuffled pile of 2 swaps / 5 no-swaps (truncated to 5).
+     * - `rule3`: Lancelots never switch alignment but can see each other at the start of the game.
      */
     readonly lancelot?: "rule1" | "rule2" | "rule3";
 }
@@ -184,7 +190,7 @@ type TInnerRule = {
     hasLancelot?: true;
     characters: TCharacterKey[];
     assassinate?: TCharacterKey;
-    quests: { numberOfMebers: number, needTwoFailure?: true }[];
+    quests: { numberOfMembers: number, needTwoFailure?: true }[];
 }
 /**
  * The inner rules for the game.
@@ -195,94 +201,94 @@ const innerRules: TInnerRule[] = [{
     numberOfPlayer: 5,
     characters: ["merlin", "percival", "loyalServant", "morgana", "assassin"],
     quests: [
-        { numberOfMebers: 2 },
-        { numberOfMebers: 3 },
-        { numberOfMebers: 2 },
-        { numberOfMebers: 3 },
-        { numberOfMebers: 3 }
+        { numberOfMembers: 2 },
+        { numberOfMembers: 3 },
+        { numberOfMembers: 2 },
+        { numberOfMembers: 3 },
+        { numberOfMembers: 3 }
     ]
 }, {
     numberOfPlayer: 6,
     characters: ["merlin", "percival", "loyalServant", "loyalServant", "morgana", "assassin"],
     quests: [
-        { numberOfMebers: 2 },
-        { numberOfMebers: 3 },
-        { numberOfMebers: 4 },
-        { numberOfMebers: 3 },
-        { numberOfMebers: 4 }
+        { numberOfMembers: 2 },
+        { numberOfMembers: 3 },
+        { numberOfMembers: 4 },
+        { numberOfMembers: 3 },
+        { numberOfMembers: 4 }
     ]
 }, {
     numberOfPlayer: 7,
     characters: ["merlin", "percival", "loyalServant", "loyalServant", "morgana", "assassin", "oberon"],
     quests: [
-        { numberOfMebers: 2 },
-        { numberOfMebers: 3 },
-        { numberOfMebers: 3 },
-        { numberOfMebers: 4, needTwoFailure: true },
-        { numberOfMebers: 4 }
+        { numberOfMembers: 2 },
+        { numberOfMembers: 3 },
+        { numberOfMembers: 3 },
+        { numberOfMembers: 4, needTwoFailure: true },
+        { numberOfMembers: 4 }
     ]
 }, {
     numberOfPlayer: 7,
     hasLancelot: true,
     characters: ["merlin", "percival", "loyalServant", "lancelot_good", "morgana", "assassin", "lancelot_evil"],
     quests: [
-        { numberOfMebers: 2 },
-        { numberOfMebers: 3 },
-        { numberOfMebers: 3 },
-        { numberOfMebers: 4, needTwoFailure: true },
-        { numberOfMebers: 4 }
+        { numberOfMembers: 2 },
+        { numberOfMembers: 3 },
+        { numberOfMembers: 3 },
+        { numberOfMembers: 4, needTwoFailure: true },
+        { numberOfMembers: 4 }
     ]
 }, {
     numberOfPlayer: 8,
     characters: ["merlin", "percival", "loyalServant", "loyalServant", "loyalServant", "morgana", "assassin", "minion"],
     quests: [
-        { numberOfMebers: 3 },
-        { numberOfMebers: 4 },
-        { numberOfMebers: 4 },
-        { numberOfMebers: 5, needTwoFailure: true },
-        { numberOfMebers: 5 }
+        { numberOfMembers: 3 },
+        { numberOfMembers: 4 },
+        { numberOfMembers: 4 },
+        { numberOfMembers: 5, needTwoFailure: true },
+        { numberOfMembers: 5 }
     ]
 }, {
     numberOfPlayer: 8,
     hasLancelot: true,
     characters: ["merlin", "percival", "loyalServant", "loyalServant", "lancelot_good", "morgana", "assassin", "lancelot_evil"],
     quests: [
-        { numberOfMebers: 3 },
-        { numberOfMebers: 4 },
-        { numberOfMebers: 4 },
-        { numberOfMebers: 5, needTwoFailure: true },
-        { numberOfMebers: 5 }
+        { numberOfMembers: 3 },
+        { numberOfMembers: 4 },
+        { numberOfMembers: 4 },
+        { numberOfMembers: 5, needTwoFailure: true },
+        { numberOfMembers: 5 }
     ]
 }, {
     numberOfPlayer: 9,
     characters: ["merlin", "percival", "loyalServant", "loyalServant", "loyalServant", "loyalServant", "mordred", "morgana", "assassin"],
     quests: [
-        { numberOfMebers: 3 },
-        { numberOfMebers: 4 },
-        { numberOfMebers: 4 },
-        { numberOfMebers: 5, needTwoFailure: true },
-        { numberOfMebers: 5 }
+        { numberOfMembers: 3 },
+        { numberOfMembers: 4 },
+        { numberOfMembers: 4 },
+        { numberOfMembers: 5, needTwoFailure: true },
+        { numberOfMembers: 5 }
     ]
 }, {
     numberOfPlayer: 9,
     hasLancelot: true,
     characters: ["merlin", "percival", "loyalServant", "loyalServant", "loyalServant", "lancelot_good", "morgana", "assassin", "lancelot_evil"],
     quests: [
-        { numberOfMebers: 3 },
-        { numberOfMebers: 4 },
-        { numberOfMebers: 4 },
-        { numberOfMebers: 5, needTwoFailure: true },
-        { numberOfMebers: 5 }
+        { numberOfMembers: 3 },
+        { numberOfMembers: 4 },
+        { numberOfMembers: 4 },
+        { numberOfMembers: 5, needTwoFailure: true },
+        { numberOfMembers: 5 }
     ]
 }, {
     numberOfPlayer: 10,
     characters: ["merlin", "percival", "loyalServant", "loyalServant", "loyalServant", "loyalServant", "mordred", "morgana", "assassin", "oberon"],
     quests: [
-        { numberOfMebers: 3 },
-        { numberOfMebers: 4 },
-        { numberOfMebers: 4 },
-        { numberOfMebers: 5, needTwoFailure: true },
-        { numberOfMebers: 5 }
+        { numberOfMembers: 3 },
+        { numberOfMembers: 4 },
+        { numberOfMembers: 4 },
+        { numberOfMembers: 5, needTwoFailure: true },
+        { numberOfMembers: 5 }
     ]
 }, {
     numberOfPlayer: 10,
@@ -290,33 +296,33 @@ const innerRules: TInnerRule[] = [{
     assassinate: "morgana",
     characters: ["merlin", "percival", "loyalServant", "loyalServant", "loyalServant", "lancelot_good", "mordred", "morgana", "lancelot_evil", "oberon"],
     quests: [
-        { numberOfMebers: 3 },
-        { numberOfMebers: 4 },
-        { numberOfMebers: 4 },
-        { numberOfMebers: 5, needTwoFailure: true },
-        { numberOfMebers: 5 }
+        { numberOfMembers: 3 },
+        { numberOfMembers: 4 },
+        { numberOfMembers: 4 },
+        { numberOfMembers: 5, needTwoFailure: true },
+        { numberOfMembers: 5 }
     ]
 }, {
     numberOfPlayer: 11,
     hasLancelot: true,
     characters: ["merlin", "percival", "loyalServant", "loyalServant", "loyalServant", "loyalServant", "lancelot_good", "mordred", "morgana", "lancelot_evil", "assassin"],
     quests: [
-        { numberOfMebers: 3 },
-        { numberOfMebers: 4 },
-        { numberOfMebers: 5 },
-        { numberOfMebers: 6, needTwoFailure: true },
-        { numberOfMebers: 6 }
+        { numberOfMembers: 3 },
+        { numberOfMembers: 4 },
+        { numberOfMembers: 5 },
+        { numberOfMembers: 6, needTwoFailure: true },
+        { numberOfMembers: 6 }
     ]
 }, {
     numberOfPlayer: 12,
     hasLancelot: true,
     characters: ["merlin", "percival", "loyalServant", "loyalServant", "loyalServant", "loyalServant", "lancelot_good", "mordred", "morgana", "lancelot_evil", "oberon", "assassin"],
     quests: [
-        { numberOfMebers: 3 },
-        { numberOfMebers: 4 },
-        { numberOfMebers: 5 },
-        { numberOfMebers: 6, needTwoFailure: true },
-        { numberOfMebers: 6 }
+        { numberOfMembers: 3 },
+        { numberOfMembers: 4 },
+        { numberOfMembers: 5 },
+        { numberOfMembers: 6, needTwoFailure: true },
+        { numberOfMembers: 6 }
     ]
 }]
 

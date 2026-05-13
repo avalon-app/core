@@ -1,3 +1,4 @@
+import { AvalonError } from './error';
 import { TRule } from './rule';
 
 /**
@@ -98,7 +99,7 @@ const nextPlayer = (seat: number, numberOfPlayer: number) => {
  */
 export const CreateQuests = (rule: TRule, leader: number): TQuest[] => {
     if (leader < 0 || leader >= rule.numberOfPlayer) {
-        throw new Error("Invalid leader parameter")
+        throw new AvalonError("INVALID_LEADER", "Invalid leader", { leader, numberOfPlayer: rule.numberOfPlayer })
     }
     return [0, 1, 2, 3, 4].map(idx => {
         const ladyOfTheLake = rule.hasLadyOfTheLake && idx === 1 ? previousPlayer(leader, rule.numberOfPlayer) : undefined
@@ -172,16 +173,16 @@ export const FirstUnStartedQuest = (quests: TQuest[]) => {
  */
 export const CreateNextTeam = (quests: TQuest[], rule: TRule) => {
     if (!CanCreateNewTeam(quests, rule)) {
-        throw new Error("Cannot create new team")
+        throw new AvalonError("CANNOT_CREATE_NEW_TEAM", "Cannot create new team")
     }
     const quest = InProgressQuest(quests)
     if (!quest) {
-        throw new Error("No quest in progress")
+        throw new AvalonError("NO_QUEST_IN_PROGRESS", "No quest in progress")
     }
     /// add in current quest
     const team = RecentTeam(quests)
     if (!team) {
-        throw new Error("No team in progress")
+        throw new AvalonError("NO_TEAM_IN_PROGRESS", "No team in progress")
     }
     const lastLeader = team.leader
     quest.teams.push({

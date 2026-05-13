@@ -1,4 +1,5 @@
 import { TCharacterKey } from './character';
+import { AvalonError } from './error';
 import { randomArray } from './tools';
 
 /**
@@ -162,11 +163,15 @@ const lancelotVisibilityRule: TVisibilityRule = {
  */
 export const defaultRuleForNumberOfPlayer = (numberOfPlayer: number, lancelotRule?: TRule["lancelot"]) => {
     if (lancelotRule && !["rule1", "rule2", "rule3"].includes(lancelotRule)) {
-        throw new Error("error lancelot rule")
+        throw new AvalonError("INVALID_LANCELOT_RULE", "Invalid lancelot rule", { lancelotRule })
     }
     const rule = innerRules.find(item => item.numberOfPlayer === numberOfPlayer && (lancelotRule ? item.hasLancelot : !item.hasLancelot))
     if (!rule) {
-        throw new Error(`no suit rule for numberOfPlayer:${numberOfPlayer} lancelotRule:${lancelotRule}`)
+        throw new AvalonError(
+            "NO_RULE_FOR_PLAYER_COUNT",
+            `No rule found for numberOfPlayer:${numberOfPlayer} lancelotRule:${lancelotRule}`,
+            { numberOfPlayer, lancelotRule }
+        )
     }
     const result: TRule = {
         assassin: rule.assassinate || "assassin",

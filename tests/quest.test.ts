@@ -1,3 +1,4 @@
+import { AvalonError } from "../src/error";
 import { CreateQuests, InProgressQuest, RecentTeam, TQuest } from "../src/quest";
 import { defaultRuleForNumberOfPlayer } from "../src/rule"
 
@@ -21,8 +22,9 @@ describe("CreateQuests", () => {
         if (!rule) {
             throw new Error("Rule is undefined");
         }
-        expect(() => CreateQuests(rule, -1)).toThrow("Invalid leader parameter");
-        expect(() => CreateQuests(rule, 5)).toThrow("Invalid leader parameter");
+        expect(() => CreateQuests(rule, -1)).toThrow(AvalonError);
+        expect(() => CreateQuests(rule, -1)).toThrow(expect.objectContaining({ code: "INVALID_LEADER" }));
+        expect(() => CreateQuests(rule, 5)).toThrow(expect.objectContaining({ code: "INVALID_LEADER" }));
     });
 
     it("should set ladyOfTheLake correctly if rule hasLadyOfTheLake is true", () => {

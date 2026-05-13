@@ -14,12 +14,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      issues: write
       pull-requests: write
       id-token: write
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v6
 
@@ -35,12 +37,11 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Create release PR or publish to npm
-        uses: changesets/action@v1
-        with:
-          publish: pnpm release
-          version: pnpm version-packages
-          commit: "chore: release"
-          title: "chore: release"
+      - name: Build
+        run: pnpm build
+
+      - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
+        run: pnpm semantic-release

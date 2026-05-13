@@ -81,6 +81,51 @@ console.log(game.stage, game.result);
 
 类型导出：`TAvalon`、`TQuest`、`TTeam`、`TRule`、`TCharacterKey`、`TAlignment`。
 
+## 错误处理
+
+所有非法调用都会抛出 `AvalonError`——它继承自 `Error`，附带稳定的程序化字段 `code` 以及可选的 `details`。请基于 `code` 进行匹配，不要依赖 `message`（文案可能调整）。
+
+```typescript
+import { AvalonError, Assassinate } from "@avalon-app/core";
+
+try {
+  Assassinate(game, -1);
+} catch (e) {
+  if (e instanceof AvalonError) {
+    console.log(e.code);    // "INVALID_ASSASSINATION_TARGET"
+    console.log(e.details); // { target: -1, numberOfPlayer: 5 }
+  }
+}
+```
+
+`code` 字段的类型为 `TAvalonErrorCode`：
+
+| Code | 触发场景 |
+| --- | --- |
+| `INVALID_LANCELOT_RULE` | `DefaultRuleForNumberOfPlayer` 收到未知的 lancelot 规则字符串。 |
+| `NO_RULE_FOR_PLAYER_COUNT` | 找不到匹配 `numberOfPlayer` / lancelot 组合的预设。 |
+| `INVALID_LANCELOT_CONFIG` | `CreateAvalon` 传入了非法的 lancelot 规则，或在 7 人以下启用了 lancelot。 |
+| `INVALID_FIRST_LEADER` | `CreateAvalon` 的 `firstLeader` 不是 `[0, numberOfPlayer)` 范围内的整数。 |
+| `INVALID_LEADER` | `CreateQuests`（内部）的 leader 不在 `[0, numberOfPlayer)` 范围。 |
+| `INVALID_STAGE` | 在错误的阶段调用了某个动作。`details: { expected, actual }`。 |
+| `NO_QUEST_IN_PROGRESS` | 需要进行中的任务但找不到。 |
+| `NO_TEAM_IN_PROGRESS` | 当前任务没有可操作的队伍。 |
+| `NO_RECENT_TEAM` | `SetExcalibur` 找不到最近的队伍。 |
+| `NO_LAST_FINISHED_QUEST` | `SetNextLadyOfTheLake` 调用时还没有已完成的任务。 |
+| `CANNOT_CREATE_NEW_TEAM` | 已达到最大组队次数上限。 |
+| `INVALID_TEAM_MEMBER_COUNT` | 队伍人数与任务的 `numberOfMembers` 不匹配。 |
+| `INVALID_TEAM_MEMBER` | 提名的某个队员不是合法的玩家索引。 |
+| `INVALID_VOTE_COUNT` | 投票数量与当前阶段的期望不一致。 |
+| `INVALID_VOTER` | 投票引用了不存在的玩家座位。 |
+| `DUPLICATE_VOTER` | 同一玩家在一次投票中出现多次。 |
+| `INVALID_LADY_OF_THE_LAKE` | `SetNextLadyOfTheLake` 目标不在 `[0, numberOfPlayer)` 范围。 |
+| `LADY_OF_THE_LAKE_ALREADY_HELD` | 选择的玩家曾经担任过湖中仙女。 |
+| `EXCALIBUR_DISABLED` | `rule.enableExcalibur` 为 false 时调用 `SetExcalibur`。 |
+| `EXCALIBUR_NOT_TEAM_MEMBER` | 王者之剑目标不在当前队伍中。 |
+| `EXCALIBUR_IS_LEADER` | 王者之剑目标是队长（不允许）。 |
+| `INVALID_ASSASSINATION_TARGET` | `Assassinate` 目标不是合法的玩家座位。 |
+| `MISSING_LANCELOT_SWITCH` | 内部：启用了 lancelot 规则但 switch 数组缺失。 |
+
 ## 阶段流转
 
 ```

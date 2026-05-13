@@ -81,6 +81,51 @@ console.log(game.stage, game.result);
 
 Types are exported as `TAvalon`, `TQuest`, `TTeam`, `TRule`, `TCharacterKey`, `TAlignment`.
 
+## Error Handling
+
+Every invalid call throws an `AvalonError` — a subclass of `Error` with a stable, programmatic `code` and an optional `details` payload. Match on `code`, not on `message` (messages may be reworded).
+
+```typescript
+import { AvalonError, Assassinate } from "@avalon-app/core";
+
+try {
+  Assassinate(game, -1);
+} catch (e) {
+  if (e instanceof AvalonError) {
+    console.log(e.code);    // "INVALID_ASSASSINATION_TARGET"
+    console.log(e.details); // { target: -1, numberOfPlayer: 5 }
+  }
+}
+```
+
+The `code` field is typed as `TAvalonErrorCode`:
+
+| Code | Thrown when |
+| --- | --- |
+| `INVALID_LANCELOT_RULE` | `DefaultRuleForNumberOfPlayer` receives an unknown lancelot rule string. |
+| `NO_RULE_FOR_PLAYER_COUNT` | No preset matches the requested `numberOfPlayer` / lancelot combination. |
+| `INVALID_LANCELOT_CONFIG` | `CreateAvalon` called with an invalid lancelot rule, or lancelot enabled with fewer than 7 players. |
+| `INVALID_FIRST_LEADER` | `CreateAvalon`'s `firstLeader` is not an integer in `[0, numberOfPlayer)`. |
+| `INVALID_LEADER` | `CreateQuests` (internal) given a leader seat outside `[0, numberOfPlayer)`. |
+| `INVALID_STAGE` | An action was called in the wrong stage. `details: { expected, actual }`. |
+| `NO_QUEST_IN_PROGRESS` | No quest is currently in progress when one is required. |
+| `NO_TEAM_IN_PROGRESS` | The active quest has no team to operate on. |
+| `NO_RECENT_TEAM` | `SetExcalibur` could not find a recent team. |
+| `NO_LAST_FINISHED_QUEST` | `SetNextLadyOfTheLake` called with no finished quest yet. |
+| `CANNOT_CREATE_NEW_TEAM` | The team-proposal cap has been reached. |
+| `INVALID_TEAM_MEMBER_COUNT` | Team size doesn't match the quest's `numberOfMembers`. |
+| `INVALID_TEAM_MEMBER` | A proposed member seat is not a valid player index. |
+| `INVALID_VOTE_COUNT` | Number of votes doesn't match what the stage expects. |
+| `INVALID_VOTER` | A vote references a non-existent player seat. |
+| `DUPLICATE_VOTER` | The same player appears more than once in a vote payload. |
+| `INVALID_LADY_OF_THE_LAKE` | `SetNextLadyOfTheLake` target is not in `[0, numberOfPlayer)`. |
+| `LADY_OF_THE_LAKE_ALREADY_HELD` | The chosen player has already held Lady of the Lake. |
+| `EXCALIBUR_DISABLED` | `SetExcalibur` called when `rule.enableExcalibur` is false. |
+| `EXCALIBUR_NOT_TEAM_MEMBER` | Excalibur target is not a member of the current team. |
+| `EXCALIBUR_IS_LEADER` | Excalibur target is the team leader (not allowed). |
+| `INVALID_ASSASSINATION_TARGET` | `Assassinate` target is not a valid player seat. |
+| `MISSING_LANCELOT_SWITCH` | Internal: lancelot switch array is missing for an active lancelot rule. |
+
 ## Game Stages
 
 ```

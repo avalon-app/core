@@ -1,6 +1,12 @@
 import { Create, UpdateRecentTeamMember, UpdateRecentTeamVote, UpdateRecentQuestVote, SetNextLadyOfTheLake, SetExcalibur, TAvalon, Assassinate, ChangeToAssassinate } from "../src/avalon"
+import { AvalonError, TAvalonErrorCode } from "../src/error"
 import { CanCreateNewTeam, TTeam } from "../src/quest"
 import { defaultRuleForNumberOfPlayer, TRule } from "../src/rule"
+
+const expectAvalonError = (fn: () => unknown, code: TAvalonErrorCode) => {
+    expect(fn).toThrow(AvalonError)
+    expect(fn).toThrow(expect.objectContaining({ code }))
+}
 
 const createTeamVotes = (count: number, success: boolean): TTeam["votes"] => {
     let maxSuccessCount = success ? Math.floor(count / 2) + 1 : Math.floor(count / 2)
@@ -312,15 +318,15 @@ describe("Avalon Game", () => {
         }])
 
         expect(game.stage).toBe("assassinate")
-        expect(() => Assassinate(game, -1)).toThrow("Invalid assassination target")
-        expect(() => Assassinate(game, rule.numberOfPlayer)).toThrow("Invalid assassination target")
-        expect(() => Assassinate(game, 1.5)).toThrow("Invalid assassination target")
+        expectAvalonError(() => Assassinate(game, -1), "INVALID_ASSASSINATION_TARGET")
+        expectAvalonError(() => Assassinate(game, rule.numberOfPlayer), "INVALID_ASSASSINATION_TARGET")
+        expectAvalonError(() => Assassinate(game, 1.5), "INVALID_ASSASSINATION_TARGET")
     })
 
     it("Assassinate requires assassinate stage", () => {
         const rule = defaultRuleForNumberOfPlayer(5)
         const game = Create(rule)
-        expect(() => Assassinate(game, 0)).toThrow("Invalid stage")
+        expectAvalonError(() => Assassinate(game, 0), "INVALID_STAGE")
     })
 
     it("ChangeToAssassinate moves into assassinate stage", () => {
@@ -337,12 +343,12 @@ describe("Avalon Game", () => {
         const nonLeaderMember = (leader + 1) % rule.numberOfPlayer
         UpdateRecentTeamMember(game, [leader, nonLeaderMember])
 
-        expect(() => SetExcalibur(game, rule, nonLeaderMember)).toThrow("Excalibur is not enabled")
+        expectAvalonError(() => SetExcalibur(game, rule, nonLeaderMember), "EXCALIBUR_DISABLED")
 
         const excaliburRule: TRule = { ...rule, enableExcalibur: true }
-        expect(() => SetExcalibur(game, excaliburRule, leader)).toThrow("Excalibur target cannot be the team leader")
+        expectAvalonError(() => SetExcalibur(game, excaliburRule, leader), "EXCALIBUR_IS_LEADER")
         const outsider = game.players.findIndex((_, i) => i !== leader && i !== nonLeaderMember)
-        expect(() => SetExcalibur(game, excaliburRule, outsider)).toThrow("Excalibur target must be a current team member")
+        expectAvalonError(() => SetExcalibur(game, excaliburRule, outsider), "EXCALIBUR_NOT_TEAM_MEMBER")
 
         SetExcalibur(game, excaliburRule, nonLeaderMember)
         expect(game.quests[0].teams[0].excalibur).toBe(nonLeaderMember)
@@ -359,7 +365,7 @@ describe("Avalon Game", () => {
             { player: 3, vote: true },
             { player: 4, vote: true },
         ]
-        expect(() => UpdateRecentTeamVote(game, rule, dup)).toThrow("Duplicate voter")
+        expectAvalonError(() => UpdateRecentTeamVote(game, rule, dup), "DUPLICATE_VOTER")
 
         const outOfRange: TTeam["votes"] = [
             { player: 0, vote: true },
@@ -368,7 +374,7 @@ describe("Avalon Game", () => {
             { player: 3, vote: true },
             { player: 9, vote: true },
         ]
-        expect(() => UpdateRecentTeamVote(game, rule, outOfRange)).toThrow("Invalid voter")
+        expectAvalonError(() => UpdateRecentTeamVote(game, rule, outOfRange), "INVALID_VOTER")
     })
 
     it("SetNextLadyOfTheLake rejects out-of-range and reused seats", () => {
@@ -385,10 +391,10 @@ describe("Avalon Game", () => {
             questVotes: [true, true, true]
         }])
         expect(game.stage).toBe("ladyOfTheLake")
-        expect(() => SetNextLadyOfTheLake(game, rule, -1)).toThrow("Invalid next lady of the lake")
-        expect(() => SetNextLadyOfTheLake(game, rule, rule.numberOfPlayer)).toThrow("Invalid next lady of the lake")
+        expectAvalonError(() => SetNextLadyOfTheLake(game, rule, -1), "INVALID_LADY_OF_THE_LAKE")
+        expectAvalonError(() => SetNextLadyOfTheLake(game, rule, rule.numberOfPlayer), "INVALID_LADY_OF_THE_LAKE")
         const existing = game.quests[1].ladyOfTheLake!
-        expect(() => SetNextLadyOfTheLake(game, rule, existing)).toThrow("Next lady of the lake has already held the role")
+        expectAvalonError(() => SetNextLadyOfTheLake(game, rule, existing), "LADY_OF_THE_LAKE_ALREADY_HELD")
     })
 
     it("CanCreateNewTeam whole mode counts total proposals", () => {

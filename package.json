@@ -1,6 +1,6 @@
 {
   "name": "@avalon-app/core",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A framework-agnostic game engine for The Resistance: Avalon — handles character dealing, quest flow, team voting, Lady of the Lake, Excalibur, Lancelot rules, and assassination, so you can focus on building the UI.",
   "repository": {
     "type": "git",

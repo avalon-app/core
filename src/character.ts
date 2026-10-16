@@ -1,26 +1,47 @@
 /**
- * Creates an object representing a character with a specified key and alignment.
- * This function creates a static key type and alignment type for the character.
- *
- * @template T - The type of the key, which extends string.
- * @template P - The type of the alignment, which can be either "good" or "evil".
- * @param {T} key - The unique identifier for the character.
- * @param {P} alignment - The alignment of the character, either "good" or "evil".
- * @returns {{ key: T, alignment: P }} An object containing the key and alignment of the character.
+ * The side a character plays for.
  */
-const C = <T extends string, P extends "good" | "evil">(key: T, alignment: P) => ({ key, alignment })
+export type Alignment = "good" | "evil"
 
-export const merlin = C('merlin', "good")
-export const percival = C('percival', "good")
-export const loyalServant = C('loyalServant', "good")
-export const lancelot_good = C('lancelot_good', "good")
-export const morgana = C('morgana', "evil")
-export const assassin = C('assassin', "evil")
-export const oberon = C('oberon', "evil")
-export const mordred = C('mordred', "evil")
-export const minion = C('minion', "evil")
-export const lancelot_evil = C('lancelot_evil', "evil")
+/**
+ * Every character supported by the engine, keyed by its stable identifier, with its starting alignment.
+ * Lancelots may switch alignment during the game (see `Rule.lancelot`); use `getAlignment` for the current one.
+ */
+export const CHARACTERS = {
+    merlin: { alignment: "good" },
+    percival: { alignment: "good" },
+    loyalServant: { alignment: "good" },
+    lancelotGood: { alignment: "good" },
+    morgana: { alignment: "evil" },
+    assassin: { alignment: "evil" },
+    oberon: { alignment: "evil" },
+    mordred: { alignment: "evil" },
+    minion: { alignment: "evil" },
+    lancelotEvil: { alignment: "evil" },
+} as const satisfies Record<string, { readonly alignment: Alignment }>
 
-export const Characters = [merlin, percival, loyalServant, morgana, assassin, oberon, mordred, minion, lancelot_good, lancelot_evil]
-export type TAlignment = typeof Characters[number]["alignment"]
-export type TCharacterKey = typeof Characters[number]["key"]
+/**
+ * The identifier of a character.
+ */
+export type CharacterKey = keyof typeof CHARACTERS
+
+/**
+ * Characters that may appear at most once in a game. The others (loyal servants, minions) may repeat.
+ */
+export const UNIQUE_CHARACTERS: readonly CharacterKey[] = [
+    "merlin", "percival", "lancelotGood", "morgana", "assassin", "oberon", "mordred", "lancelotEvil"
+]
+
+/**
+ * Checks whether a value is a known character key.
+ */
+export const isCharacterKey = (value: unknown): value is CharacterKey => {
+    return typeof value === "string" && Object.prototype.hasOwnProperty.call(CHARACTERS, value)
+}
+
+/**
+ * Checks whether a character is one of the two Lancelots.
+ */
+export const isLancelot = (character: CharacterKey) => {
+    return character === "lancelotGood" || character === "lancelotEvil"
+}

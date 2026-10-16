@@ -79,8 +79,9 @@ export const getAssassinSeat = (state: GameState): number | undefined => {
 /**
  * What the game is waiting for, and who may do it. Empty once the game has ended.
  *
- * With `rule.allowEarlyAssassination`, an `assassinate` entry for the assassin is listed in every stage —
- * this reveals the assassin, so never send the result of this function to players (`getPlayerView` filters it).
+ * Some entries are secret, so never send the result of this function to players (`getPlayerView` filters them):
+ * with `rule.allowEarlyAssassination` an `assassinate` entry reveals the assassin in every stage, and during `quest`
+ * the presence of a `useExcalibur` entry tells whether the holder has already decided.
  */
 export const getPendingActions = (state: GameState): PendingAction[] => {
     const pending: PendingAction[] = []
@@ -100,6 +101,10 @@ export const getPendingActions = (state: GameState): PendingAction[] => {
             if (team && quest) {
                 const played = new Set((quest.pendingCards ?? []).map(card => card.player))
                 pending.push({ type: "playQuestCard", players: team.members.filter(member => !played.has(member)) })
+                // The Excalibur holder may decide before the last card is played.
+                if (team.excaliburHolder !== undefined && quest.pendingExcaliburTarget === undefined) {
+                    pending.push({ type: "useExcalibur", players: [team.excaliburHolder] })
+                }
             }
             break
         case "excalibur":

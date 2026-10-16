@@ -1,5 +1,5 @@
 import { applyAction, areLancelotsSwitched, createRule, GameState, getAlignment, getPendingActions, getScore, LancelotVariant } from "../src"
-import { expectAvalonError, propose, rejectTeam, runQuest, setup, voteAll } from "./helpers"
+import { expectAvalonError, playCards, propose, rejectTeam, runQuest, setup, voteAll } from "./helpers"
 
 // 7 players with Lancelot, leader 0:
 // 0 merlin, 1 percival, 2 loyalServant, 3 lancelotGood (good) · 4 morgana, 5 assassin, 6 lancelotEvil (evil)
@@ -120,10 +120,12 @@ describe("a full game with every module", () => {
         expect(state.ladyOfTheLake!.uses).toEqual([{ afterQuest: 1, holder: 6, target: 4, alignment: "evil" }])
         expect(state.leader).toBe(3)
 
-        // Quest 3 fails with two fail cards.
-        state = runQuest(state, [3, 5, 6], [5, 6], 5)
+        // Quest 3: the holder declines Excalibur before the cards are played; two fail cards fail it.
+        state = voteAll(propose(state, [3, 5, 6], 5), true)
         state = applyAction(state, { type: "useExcalibur", player: 5, target: null })
+        state = playCards(state, [5, 6])
         expect(state.quests[2].status).toBe("failed")
+        expect(state.stage).toBe("ladyOfTheLake")
 
         // Lady of the Lake: Morgana examines Merlin.
         state = applyAction(state, { type: "useLadyOfTheLake", player: 4, target: 0 })

@@ -206,6 +206,60 @@ describe("useExcalibur", () => {
         expectAvalonError(() => applyAction(state, { type: "useExcalibur", player: 3, target: 3 }), "INVALID_EXCALIBUR_TARGET")
         expectAvalonError(() => applyAction(state, { type: "useExcalibur", player: 3, target: 0 }), "INVALID_EXCALIBUR_TARGET")
     })
+
+    describe("decided while the cards are being played", () => {
+        // The team [1, 3] is on the quest with Excalibur held by seat 3; no card played yet.
+        const onQuest = (rule = createRule(5, { excalibur: true })) => voteAll(propose(setup(rule), [1, 3], 3), true)
+        const play = (state: GameState, player: number, success: boolean) => applyAction(state, { type: "playQuestCard", player, success })
+
+        it("is kept secret and applied as soon as the last card is played", () => {
+            let state = onQuest()
+            expect(getPendingActions(state)).toEqual([
+                { type: "playQuestCard", players: [1, 3] },
+                { type: "useExcalibur", players: [3] },
+            ])
+            state = applyAction(state, { type: "useExcalibur", player: 3, target: 1 })
+            expect(state.stage).toBe("quest")
+            expect(state.quests[0].pendingExcaliburTarget).toBe(1)
+            expect(getPendingActions(state)).toEqual([{ type: "playQuestCard", players: [1, 3] }])
+
+            state = play(play(state, 1, true), 3, false)
+            // No excalibur stage: the quest resolves with the early decision.
+            expect(state.stage).toBe("teamBuilding")
+            expect(state.quests[0].result).toEqual({ success: false, failCount: 2, cards: [false, false], excalibur: { target: 1, originalCard: true } })
+            expect(state.quests[0]).not.toHaveProperty("pendingExcaliburTarget")
+        })
+
+        it("may come between cards, and may decline", () => {
+            let state = play(onQuest(), 3, true)
+            state = applyAction(state, { type: "useExcalibur", player: 3, target: null })
+            expect(state.quests[0].pendingExcaliburTarget).toBeNull()
+            state = play(state, 1, true)
+            expect(state.quests[0].result).toEqual({ success: true, failCount: 0, cards: [true, true] })
+        })
+
+        it("is made once, by the holder, on another team member", () => {
+            const state = onQuest()
+            expectAvalonError(() => applyAction(state, { type: "useExcalibur", player: 1, target: 3 }), "PLAYER_CANNOT_ACT")
+            expectAvalonError(() => applyAction(state, { type: "useExcalibur", player: 3, target: 3 }), "INVALID_EXCALIBUR_TARGET")
+            expectAvalonError(() => applyAction(state, { type: "useExcalibur", player: 3, target: 0 }), "INVALID_EXCALIBUR_TARGET")
+            const decided = applyAction(state, { type: "useExcalibur", player: 3, target: null })
+            expectAvalonError(() => applyAction(decided, { type: "useExcalibur", player: 3, target: 1 }), "ALREADY_ACTED")
+        })
+
+        it("is not available without Excalibur", () => {
+            const state = voteAll(propose(five(), [1, 3]), true)
+            expectAvalonError(() => applyAction(state, { type: "useExcalibur", player: 3, target: 1 }), "EXCALIBUR_DISABLED")
+        })
+
+        it("is discarded when the game ends before the quest resolves", () => {
+            let state = onQuest(createRule(5, { excalibur: true, allowEarlyAssassination: true }))
+            state = applyAction(state, { type: "useExcalibur", player: 3, target: 1 })
+            state = applyAction(state, { type: "assassinate", player: 4, target: 0 })
+            expect(state.stage).toBe("ended")
+            expect(state.quests[0]).not.toHaveProperty("pendingExcaliburTarget")
+        })
+    })
 })
 
 describe("useLadyOfTheLake", () => {

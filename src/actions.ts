@@ -112,21 +112,33 @@ const playQuestCard = (draft: DraftState, action: ActionOf<"playQuestCard">) => 
     if (pendingCards.length < team.members.length) {
         return
     }
-    if (team.excaliburHolder !== undefined) {
+    if (team.excaliburHolder !== undefined && quest.pendingExcaliburTarget === undefined) {
+        // The holder has not decided yet: wait for them.
         draft.stage = "excalibur"
     } else {
-        resolveQuest(draft, questIndex, null)
+        resolveQuest(draft, questIndex, quest.pendingExcaliburTarget ?? null)
     }
 }
 
 const useExcalibur = (draft: DraftState, action: ActionOf<"useExcalibur">) => {
-    expectStage(draft, action, ["excalibur"])
-    const { questIndex, team } = currentQuestAndTeam(draft)
+    expectStage(draft, action, ["quest", "excalibur"])
+    if (!draft.rule.excalibur) {
+        throw new AvalonError("EXCALIBUR_DISABLED", "Excalibur is not part of this game")
+    }
+    const { questIndex, quest, team } = currentQuestAndTeam(draft)
     const holder = team.excaliburHolder as number
     expectActor(draft, action, [holder])
+    if (quest.pendingExcaliburTarget !== undefined) {
+        throw new AvalonError("ALREADY_ACTED", `Player ${action.player} has already decided on Excalibur`, { action: action.type, player: action.player })
+    }
     const target = action.target ?? null
     if (target !== null && (!team.members.includes(target) || target === holder)) {
         throw new AvalonError("INVALID_EXCALIBUR_TARGET", "Excalibur must target another team member", { target, holder, members: team.members })
+    }
+    if (draft.stage === "quest") {
+        // Decided while cards are still being played: keep it secret and apply it when the last card is in.
+        quest.pendingExcaliburTarget = target
+        return
     }
     resolveQuest(draft, questIndex, target)
 }
@@ -148,6 +160,7 @@ const resolveQuest = (draft: DraftState, questIndex: number, excaliburTarget: nu
         ...(targetCard ? { excalibur: { target: targetCard.player, originalCard: targetCard.success } } : {}),
     }
     delete quest.pendingCards
+    delete quest.pendingExcaliburTarget
     afterQuestResolved(draft, questIndex)
 }
 

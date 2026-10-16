@@ -1,3 +1,23 @@
+# [2.0.0](https://github.com/avalon-app/core/compare/v1.1.0...v2.0.0) (2026-10-16)
+
+
+### Features
+
+* harden state transitions and apply Excalibur in the engine ([4a37985](https://github.com/avalon-app/core/commit/4a379855dec10d80a5f5ee8e4deab1dcf37c550f))
+* redesign the engine as a pure, per-player game reducer ([4497232](https://github.com/avalon-app/core/commit/44972325126c765afd362b17467a06101df2e37b))
+
+
+### BREAKING CHANGES
+
+* The whole public API is replaced. CreateAvalon,
+DefaultRuleForNumberOfPlayer, the Update*/Set* mutators, RecentTeam and the
+T-prefixed types are removed in favour of createGame, createRule,
+applyAction, the query functions and getPlayerView. Character keys, stage
+names, rule fields and error codes changed, and Node >= 22 is required.
+See "Migrating from 1.x" in the README.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
 # [1.1.0](https://github.com/avalon-app/core/compare/v1.0.0...v1.1.0) (2026-05-13)
 
 

@@ -1,3 +1,10 @@
+# [2.1.0](https://github.com/avalon-app/core/compare/v2.0.0...v2.1.0) (2026-10-16)
+
+
+### Features
+
+* let the Excalibur holder decide while quest cards are being played ([8fee19c](https://github.com/avalon-app/core/commit/8fee19c0a9d02b982eeccf9b3488b3429ea961a5))
+
 # [2.0.0](https://github.com/avalon-app/core/compare/v1.1.0...v2.0.0) (2026-10-16)
 
 

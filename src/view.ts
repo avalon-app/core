@@ -33,6 +33,8 @@ export type QuestView = {
     readonly teams: readonly TeamView[]
     /** Team members who have played their card, while the quest is being played. */
     readonly playedBy?: readonly number[]
+    /** The viewer's own Excalibur decision made while cards are still being played (Excalibur holder only). */
+    readonly pendingExcaliburTarget?: number | null
     readonly result?: {
         readonly success: boolean
         readonly failCount: number
@@ -110,36 +112,46 @@ export const getPlayerView = (state: GameState, seat?: number): PlayerView => {
     const ended = state.stage === "ended"
     const self = seat === undefined ? undefined : { seat, character: state.characters[seat], alignment: getAlignment(state, seat) }
 
-    const quests: QuestView[] = state.quests.map(quest => ({
-        teamSize: quest.teamSize,
-        failsRequired: quest.failsRequired,
-        status: quest.status,
-        teams: quest.teams.map(team => ({
-            leader: team.leader,
-            members: [...team.members],
-            ...(team.excaliburHolder !== undefined ? { excaliburHolder: team.excaliburHolder } : {}),
-            voted: team.votes.map(vote => vote !== null),
-            ...(team.approved !== undefined ? { votes: team.votes.map(vote => vote === true), approved: team.approved } : {}),
-        })),
-        ...(quest.pendingCards ? { playedBy: quest.pendingCards.map(card => card.player) } : {}),
-        ...(quest.result ? {
-            result: {
-                success: quest.result.success,
-                failCount: quest.result.failCount,
-                cards: [...quest.result.cards],
-                ...(quest.result.excalibur ? {
-                    excalibur: seat !== undefined && quest.teams[quest.teams.length - 1].excaliburHolder === seat
-                        ? { ...quest.result.excalibur }
-                        : { target: quest.result.excalibur.target },
-                } : {}),
-            },
-        } : {}),
-    }))
+    const quests: QuestView[] = state.quests.map(quest => {
+        const isExcaliburHolder = seat !== undefined && quest.teams.length > 0 && quest.teams[quest.teams.length - 1].excaliburHolder === seat
+        return {
+            teamSize: quest.teamSize,
+            failsRequired: quest.failsRequired,
+            status: quest.status,
+            teams: quest.teams.map(team => ({
+                leader: team.leader,
+                members: [...team.members],
+                ...(team.excaliburHolder !== undefined ? { excaliburHolder: team.excaliburHolder } : {}),
+                voted: team.votes.map(vote => vote !== null),
+                ...(team.approved !== undefined ? { votes: team.votes.map(vote => vote === true), approved: team.approved } : {}),
+            })),
+            ...(quest.pendingCards ? { playedBy: quest.pendingCards.map(card => card.player) } : {}),
+            ...(isExcaliburHolder && quest.pendingExcaliburTarget !== undefined ? { pendingExcaliburTarget: quest.pendingExcaliburTarget } : {}),
+            ...(quest.result ? {
+                result: {
+                    success: quest.result.success,
+                    failCount: quest.result.failCount,
+                    cards: [...quest.result.cards],
+                    ...(quest.result.excalibur ? {
+                        excalibur: isExcaliburHolder ? { ...quest.result.excalibur } : { target: quest.result.excalibur.target },
+                    } : {}),
+                },
+            } : {}),
+        }
+    })
 
-    // The assassin may act early in any stage; only the assassin is told so, to keep their identity secret.
     const assassin = getAssassinSeat(state)
-    const pendingActions = getPendingActions(state).filter(action =>
-        action.type !== "assassinate" || state.stage === "assassination" || (seat !== undefined && seat === assassin))
+    const pendingActions = getPendingActions(state).filter(action => {
+        if (action.type === "assassinate") {
+            // The assassin may act early in any stage; only the assassin is told so, to keep their identity secret.
+            return state.stage === "assassination" || (seat !== undefined && seat === assassin)
+        }
+        if (action.type === "useExcalibur" && state.stage === "quest") {
+            // Whether the holder has already decided during the quest is secret.
+            return seat !== undefined && action.players.includes(seat)
+        }
+        return true
+    })
 
     return {
         ...(self ?? {}),

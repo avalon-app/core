@@ -79,8 +79,8 @@ function onPlayerMove(seat: number, move: GameAction) {
 | --- | --- | --- |
 | `teamBuilding` | `proposeTeam` | 队长 |
 | `teamVote` | `voteTeam` | 每位玩家各一次 |
-| `quest` | `playQuestCard` | 每位队员各一次 |
-| `excalibur` | `useExcalibur` | 王者之剑持有者 |
+| `quest` | `playQuestCard`（以及提前的 `useExcalibur`） | 每位队员各一次（持剑人此时即可做决定） |
+| `excalibur` | `useExcalibur` | 王者之剑持有者，仅当最后一张牌打出时他还没做决定 |
 | `ladyOfTheLake` | `useLadyOfTheLake` | 湖中仙女持有者 |
 | `assassination` | `assassinate` | 刺客 |
 | `ended` | — | 见 `state.result` |
@@ -106,7 +106,7 @@ teamBuilding ─► teamVote ─┬─ 通过 ─► quest ─► (excalibur) �
 | `proposeTeam` | `members`、`excaliburHolder?` | 座位不可重复，人数必须等于该任务的队伍人数。启用王者之剑时，队长必须把剑交给另一名队员。 |
 | `voteTeam` | `approve` | 所有人投完后，严格过半数即通过。 |
 | `playQuestCard` | `success` | 好人必须出 `true`。 |
-| `useExcalibur` | `target`（座位或 `null`） | 持剑人可以翻转另一名队员的牌，传 `null` 表示放弃。 |
+| `useExcalibur` | `target`（座位或 `null`） | 持剑人翻转另一名队员的牌，传 `null` 表示放弃。可以在 `quest` 阶段、队员出牌的同时提前决定：决定会保密，并在最后一张牌打出时生效，跳过 `excalibur` 阶段。 |
 | `useLadyOfTheLake` | `target` | 不能是持有者本人或曾经的持有者；被查验者成为下一任持有者。 |
 | `assassinate` | `target` | 刺中梅林则坏人胜，刺空则好人胜。 |
 
@@ -174,6 +174,7 @@ const rule = { ...createRule(8), teamProposalLimit: { scope: "game", max: 15 } }
 - 组队投票在所有人投完后才公开；在此之前只显示 `voted`（谁已投票）。
 - 任务牌永远不与玩家对应：任务进行中只显示 `playedBy`，结果中的牌不带座位。
 - 王者之剑翻转前的原始牌（`originalCard`）与湖中仙女看到的阵营只对使用者本人可见；湖中仙女的结果在游戏结束后公开。
+- 在 `quest` 阶段提前做出的王者之剑决定只对持剑人可见（`pendingExcaliburTarget`）；其他玩家无法得知持剑人是否已做决定。
 - 游戏结束后，`players` 公开所有人的身份。
 - 启用提前刺杀时，只有刺客本人会被告知可以刺杀。
 
@@ -204,13 +205,13 @@ const rule = { ...createRule(8), teamProposalLimit: { scope: "game", max: 15 } }
 | `INVALID_STAGE` | 当前阶段不允许该操作（`details.expected`、`details.actual`）。 |
 | `INVALID_PLAYER` | 执行者座位（或传给查询函数的座位）不存在。 |
 | `PLAYER_CANNOT_ACT` | 该座位此刻无权执行该操作（`details.allowed`）。 |
-| `ALREADY_ACTED` | 该玩家已经投过票或出过牌。 |
+| `ALREADY_ACTED` | 该玩家已经投过票、出过牌，或已做出王者之剑决定。 |
 | `INVALID_VOTE` | 投票或任务牌不是布尔值。 |
 | `INVALID_TEAM_SIZE` | 队伍人数与该任务要求不符。 |
 | `INVALID_TEAM_MEMBER` | 某个队员不是合法座位。 |
 | `DUPLICATE_TEAM_MEMBER` | 同一座位在队伍中出现两次。 |
 | `GOOD_MUST_SUCCEED` | 好人试图出失败牌。 |
-| `EXCALIBUR_DISABLED` | 未启用王者之剑的对局中指定了持剑人。 |
+| `EXCALIBUR_DISABLED` | 未启用王者之剑的对局中指定了持剑人，或发送了 `useExcalibur`。 |
 | `EXCALIBUR_HOLDER_REQUIRED` | 启用了王者之剑，但提名时没有指定持剑人。 |
 | `INVALID_EXCALIBUR_HOLDER` | 持剑人不是队员，或是队长本人。 |
 | `INVALID_EXCALIBUR_TARGET` | 目标不是另一名队员。 |
@@ -229,7 +230,7 @@ const rule = { ...createRule(8), teamProposalLimit: { scope: "game", max: 15 } }
 | 函数原地修改 `game`，每次调用都要传 `rule` | `state = applyAction(state, action)`；规则保存在 `state.rule` 中 |
 | `UpdateRecentTeamMember` + `SetExcalibur` | `proposeTeam`，带 `members` 与 `excaliburHolder` |
 | `UpdateRecentTeamVote(game, rule, votes)` | 每位玩家一次 `voteTeam` |
-| `UpdateRecentQuestVote(game, rule, votes, excaliburTarget)` | 每位队员一次 `playQuestCard`，再由持剑人 `useExcalibur` |
+| `UpdateRecentQuestVote(game, rule, votes, excaliburTarget)` | 每位队员一次 `playQuestCard`；持剑人的 `useExcalibur` 可在出牌之前或之后 |
 | `SetNextLadyOfTheLake(game, rule, seat)` | 由持有者执行 `useLadyOfTheLake`，结果记录在 `state.ladyOfTheLake.uses` |
 | `ChangeToAssassinate` + `Assassinate` | `assassinate`；提前刺杀需要开启 `allowEarlyAssassination` |
 | `RecentTeam(game)` | `getCurrentTeam(state)` |
@@ -245,7 +246,7 @@ const rule = { ...createRule(8), teamProposalLimit: { scope: "game", max: 15 } }
 行为变化：
 
 - 好人不能再出失败牌。
-- 启用王者之剑时，队长必须把剑交给一名队员，翻牌由引擎执行。
+- 启用王者之剑时，队长必须把剑交给一名队员，翻牌由引擎执行；持剑人可以在队员出牌期间提前决定。
 - 自定义身份必须是规则角色的一个排列。
 - 任务结果中的牌不带座位；请把 `getPlayerView` 而不是完整状态发给玩家。
 - 湖中仙女会记录持有者当时看到的阵营，即使之后兰斯洛特转换阵营，这一记录依然正确。

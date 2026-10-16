@@ -79,8 +79,8 @@ Persisted games carry `state.version`; compare it with the exported `STATE_VERSI
 | --- | --- | --- |
 | `teamBuilding` | `proposeTeam` | the leader |
 | `teamVote` | `voteTeam` | every player, once |
-| `quest` | `playQuestCard` | every team member, once |
-| `excalibur` | `useExcalibur` | the Excalibur holder |
+| `quest` | `playQuestCard` (and an early `useExcalibur`) | every team member, once (the Excalibur holder may already decide) |
+| `excalibur` | `useExcalibur` | the Excalibur holder, only if they had not decided by the time the last card was played |
 | `ladyOfTheLake` | `useLadyOfTheLake` | the Lady of the Lake holder |
 | `assassination` | `assassinate` | the assassin |
 | `ended` | — | see `state.result` |
@@ -106,7 +106,7 @@ Every action has a `type` and the acting `player` (seat).
 | `proposeTeam` | `members`, `excaliburHolder?` | Distinct seats, exactly the quest's team size. With Excalibur, the leader must give it to another team member. |
 | `voteTeam` | `approve` | The team is approved by a strict majority, once every player has voted. |
 | `playQuestCard` | `success` | Good players must play `true`. |
-| `useExcalibur` | `target` (seat or `null`) | The holder may switch another team member's card, or decline with `null`. |
+| `useExcalibur` | `target` (seat or `null`) | The holder switches another team member's card, or declines with `null`. They may decide during `quest` while the cards are being played: the decision stays secret and is applied as the last card comes in, skipping the `excalibur` stage. |
 | `useLadyOfTheLake` | `target` | Not the holder or a former holder. The target becomes the next holder. |
 | `assassinate` | `target` | Hitting Merlin wins for evil, missing wins for good. |
 
@@ -174,6 +174,7 @@ Use the `id` to localise the hint you show.
 - Team votes are shown once everyone has voted; until then only `voted` (who has voted) is shown.
 - Quest cards are never tied to players: while a quest is being played only `playedBy` is shown; the result lists the cards without seats.
 - The card switched by Excalibur (`originalCard`) and the alignment seen by the Lady of the Lake are only shown to the player who used them. Lady of the Lake results become public when the game ends.
+- An Excalibur decision made during `quest` is only shown to the holder (`pendingExcaliburTarget`); other players cannot tell whether the holder has decided.
 - Every character is revealed in `players` once the game has ended.
 - With early assassination enabled, only the assassin is told they may assassinate.
 
@@ -204,13 +205,13 @@ Every invalid call throws an `AvalonError` with a stable `code` and optional `de
 | `INVALID_STAGE` | The action is not allowed in the current stage (`details.expected`, `details.actual`). |
 | `INVALID_PLAYER` | The acting seat (or the seat passed to a query) does not exist. |
 | `PLAYER_CANNOT_ACT` | That seat may not perform this action now (`details.allowed`). |
-| `ALREADY_ACTED` | The player has already voted or played a card. |
+| `ALREADY_ACTED` | The player has already voted, played a card or made their Excalibur decision. |
 | `INVALID_VOTE` | A vote or quest card is not a boolean. |
 | `INVALID_TEAM_SIZE` | The team does not have the quest's team size. |
 | `INVALID_TEAM_MEMBER` | A team member is not a seat. |
 | `DUPLICATE_TEAM_MEMBER` | A seat appears twice in the team. |
 | `GOOD_MUST_SUCCEED` | A good player tried to play a fail card. |
-| `EXCALIBUR_DISABLED` | An Excalibur holder was given in a game without Excalibur. |
+| `EXCALIBUR_DISABLED` | An Excalibur holder was given, or `useExcalibur` sent, in a game without Excalibur. |
 | `EXCALIBUR_HOLDER_REQUIRED` | Excalibur is in play but the proposal names no holder. |
 | `INVALID_EXCALIBUR_HOLDER` | The holder is not a team member, or is the leader. |
 | `INVALID_EXCALIBUR_TARGET` | The target is not another team member. |
@@ -229,7 +230,7 @@ Every invalid call throws an `AvalonError` with a stable `code` and optional `de
 | Functions mutate `game` and need `rule` on every call | `state = applyAction(state, action)`; the rule lives in `state.rule` |
 | `UpdateRecentTeamMember` + `SetExcalibur` | `proposeTeam` with `members` and `excaliburHolder` |
 | `UpdateRecentTeamVote(game, rule, votes)` | one `voteTeam` per player |
-| `UpdateRecentQuestVote(game, rule, votes, excaliburTarget)` | one `playQuestCard` per team member, then `useExcalibur` |
+| `UpdateRecentQuestVote(game, rule, votes, excaliburTarget)` | one `playQuestCard` per team member; the holder's `useExcalibur` may come before or after the cards |
 | `SetNextLadyOfTheLake(game, rule, seat)` | `useLadyOfTheLake` by the holder; the result is recorded in `state.ladyOfTheLake.uses` |
 | `ChangeToAssassinate` + `Assassinate` | `assassinate`; early assassination needs `allowEarlyAssassination` |
 | `RecentTeam(game)` | `getCurrentTeam(state)` |
@@ -245,7 +246,7 @@ Every invalid call throws an `AvalonError` with a stable `code` and optional `de
 Behaviour that changed:
 
 - Good players can no longer play fail cards.
-- With Excalibur, the leader must give it to a team member, and the engine applies the switch.
+- With Excalibur, the leader must give it to a team member, and the engine applies the switch. The holder may decide while the cards are being played.
 - Custom characters must be a permutation of the rule's characters.
 - Quest results keep the cards without seats; send players `getPlayerView` rather than the state.
 - Lady of the Lake records the alignment the holder saw, which stays correct if a Lancelot switches later.

@@ -74,8 +74,11 @@ export const startTeamBuilding = (draft: DraftState, questIndex: number, newQues
 export const endGame = (draft: DraftState, winner: Alignment, reason: WinReason) => {
     draft.stage = "ended"
     draft.result = { winner, reason }
-    // Cards of an interrupted quest are never revealed.
-    draft.quests.forEach(quest => { delete quest.pendingCards })
+    // Cards and the Excalibur decision of an interrupted quest are never revealed.
+    draft.quests.forEach(quest => {
+        delete quest.pendingCards
+        delete quest.pendingExcaliburTarget
+    })
 }
 
 /**

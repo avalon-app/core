@@ -85,6 +85,21 @@ describe("getPlayerView: hidden game information", () => {
         expect(getPlayerView(state).quests[0].result!.excalibur).toEqual({ target: 1 })
     })
 
+    it("keeps an early Excalibur decision between the holder and the engine", () => {
+        let state = voteAll(propose(seven({ excalibur: true }), [1, 4], 4), true)
+        expect(getPlayerView(state, 4).pendingActions).toContainEqual({ type: "useExcalibur", players: [4] })
+        expect(getPlayerView(state, 1).pendingActions).toEqual([{ type: "playQuestCard", players: [1, 4] }])
+
+        state = applyAction(state, { type: "useExcalibur", player: 4, target: 1 })
+        expect(getPlayerView(state, 4).quests[0].pendingExcaliburTarget).toBe(1)
+        // Other players cannot even tell whether the holder has decided.
+        for (const seat of [0, 1, undefined]) {
+            const view = getPlayerView(state, seat)
+            expect(view.quests[0]).not.toHaveProperty("pendingExcaliburTarget")
+            expect(view.pendingActions).toEqual([{ type: "playQuestCard", players: [1, 4] }])
+        }
+    })
+
     it("shows the Lady of the Lake result to the holder only, and to everyone at the end", () => {
         let state = runQuest(runQuest(seven({ ladyOfTheLake: true }), [0, 1]), [0, 1, 2])
         state = applyAction(state, { type: "useLadyOfTheLake", player: 6, target: 4 })

@@ -11,8 +11,9 @@ export const STATE_VERSION = 2
  *
  * - `teamBuilding`: the leader proposes a team (`proposeTeam`).
  * - `teamVote`: every player votes on the proposed team (`voteTeam`).
- * - `quest`: every team member plays a quest card (`playQuestCard`).
- * - `excalibur`: the Excalibur holder decides whether to switch a card (`useExcalibur`).
+ * - `quest`: every team member plays a quest card (`playQuestCard`). The Excalibur holder may already make
+ *   their decision (`useExcalibur`); it stays secret until the quest resolves.
+ * - `excalibur`: every card is in but the Excalibur holder has not decided yet (`useExcalibur`).
  * - `ladyOfTheLake`: the Lady of the Lake holder examines a player (`useLadyOfTheLake`).
  * - `assassination`: good won three quests; the assassin names Merlin (`assassinate`).
  * - `ended`: see `GameState.result`.
@@ -63,6 +64,11 @@ export type Quest = {
     readonly teams: readonly Team[]
     /** Cards played so far by the approved team (secret). Removed once the quest resolves. */
     readonly pendingCards?: readonly QuestCard[]
+    /**
+     * The Excalibur holder's decision made while cards were still being played: the target's seat, or `null` to
+     * decline (secret). Absent while undecided; removed once the quest resolves.
+     */
+    readonly pendingExcaliburTarget?: number | null
     readonly result?: QuestResult
 }
 
@@ -131,7 +137,10 @@ export type GameAction =
     | { readonly type: "proposeTeam"; readonly player: number; readonly members: readonly number[]; readonly excaliburHolder?: number }
     | { readonly type: "voteTeam"; readonly player: number; readonly approve: boolean }
     | { readonly type: "playQuestCard"; readonly player: number; readonly success: boolean }
-    /** `target: null` declines to use Excalibur. */
+    /**
+     * `target: null` declines to use Excalibur. Accepted during `quest` (decided early, kept secret, applied when the
+     * last card is played) and during `excalibur`.
+     */
     | { readonly type: "useExcalibur"; readonly player: number; readonly target: number | null }
     | { readonly type: "useLadyOfTheLake"; readonly player: number; readonly target: number }
     | { readonly type: "assassinate"; readonly player: number; readonly target: number }

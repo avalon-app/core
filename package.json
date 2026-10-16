@@ -48,54 +48,11 @@
     "prepack": "pnpm run build",
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "jest --verbose",
-    "semantic-release": "semantic-release"
-  },
-  "release": {
-    "branches": [
-      "main"
-    ],
-    "plugins": [
-      "@semantic-release/commit-analyzer",
-      "@semantic-release/release-notes-generator",
-      [
-        "@semantic-release/changelog",
-        {
-          "changelogFile": "CHANGELOG.md"
-        }
-      ],
-      [
-        "@semantic-release/npm",
-        {
-          "npmPublish": false
-        }
-      ],
-      [
-        "@semantic-release/exec",
-        {
-          "publishCmd": "npm publish --provenance --access public"
-        }
-      ],
-      [
-        "@semantic-release/git",
-        {
-          "assets": [
-            "CHANGELOG.md",
-            "package.json"
-          ],
-          "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
-        }
-      ],
-      "@semantic-release/github"
-    ]
+    "test": "jest --verbose"
   },
   "devDependencies": {
-    "@semantic-release/changelog": "^6.0.3",
-    "@semantic-release/exec": "^7.0.3",
-    "@semantic-release/git": "^10.0.1",
     "@types/jest": "^30.0.0",
     "jest": "^30.4.2",
-    "semantic-release": "^24.2.0",
     "ts-jest": "^29.2.5",
     "tsup": "^8.3.5",
     "typescript": "^6.0.3"

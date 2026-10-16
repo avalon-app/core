@@ -14,6 +14,8 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
+    // Required by tsup's declaration build, which sets the "baseUrl" option deprecated in TypeScript 6.
+    // Without it `pnpm build` fails with TS5101. Revisit when tsup stops setting "baseUrl".
     "ignoreDeprecations": "6.0"
   },
   "include": ["src", "tests"]

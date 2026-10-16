@@ -20,7 +20,7 @@ yarn add @avalon-app/core
 
 ## Features
 
-- **Player counts 5–12**, with built-in rule presets.
+- **Player counts 5–12**, with built-in rule presets (11 and 12 players are available with Lancelot only).
 - **Quest flow**: team proposal → team vote → quest vote → next quest.
 - **Special roles**: Merlin, Percival, Morgana, Mordred, Oberon, Assassin, Loyal Servant, Minion, plus Good/Evil Lancelot.
 - **Optional modules**: Lady of the Lake, Excalibur, three Lancelot rule variants (`rule1`/`rule2`/`rule3`).
@@ -36,7 +36,7 @@ import {
   DefaultRuleForNumberOfPlayer,
   UpdateRecentTeamMember,
   UpdateRecentTeamVote,
-  UpdateResentQuestVote,
+  UpdateRecentQuestVote,
 } from "@avalon-app/core";
 
 // 1. Build a rule preset (optionally with Lancelot: "rule1" | "rule2" | "rule3")
@@ -56,7 +56,7 @@ UpdateRecentTeamVote(
 );
 
 // 5. If the team is approved, members vote on the quest.
-UpdateResentQuestVote(game, rule, [true, true]);
+UpdateRecentQuestVote(game, rule, [true, true]);
 
 // game.stage advances automatically: "team" → "quest" → "team"/"ladyOfTheLake"/"assassinate"/"end"
 console.log(game.stage, game.result);
@@ -66,20 +66,22 @@ console.log(game.stage, game.result);
 
 | Export | Purpose |
 | --- | --- |
-| `CreateAvalon(rule, customCharacters?)` | Initialise a new game state. |
+| `CreateAvalon(rule, customCharacters?, firstLeader?)` | Initialise a new game state. `customCharacters` assigns one character key per seat; `firstLeader` defaults to a random seat. |
 | `DefaultRuleForNumberOfPlayer(n, lancelot?)` | Built-in rule preset for `n` players. |
 | `SupportNumberOfPlayer(hasLancelot?)` | List supported player counts. |
-| `UpdateRecentTeamMember(game, members)` | Leader proposes the current team. |
+| `UpdateRecentTeamMember(game, members)` | Leader proposes the current team (distinct seats). |
 | `UpdateRecentTeamVote(game, rule, votes)` | Apply the team vote; advances stage or rotates leader. |
-| `UpdateResentQuestVote(game, rule, votes, excaliburTarget?)` | Apply the quest vote. |
+| `UpdateRecentQuestVote(game, rule, votes, excaliburTarget?)` | Apply the quest vote. See [Excalibur](#excalibur) for the two accepted `votes` forms. |
 | `SetNextLadyOfTheLake(game, rule, player)` | Choose the next Lady of the Lake. |
-| `SetExcalibur(game, player)` | Hand Excalibur to a team member. |
-| `ChangeToAssassinate(game)` | Force-enter the assassination stage. |
+| `SetExcalibur(game, rule, player)` | Hand Excalibur to a team member other than the leader. |
+| `ChangeToAssassinate(game)` | Force-enter the assassination stage (not allowed once the game has ended). |
 | `Assassinate(game, target)` | Resolve the assassination and end the game. |
 | `RecentTeam(game)` | Inspect the current team being proposed/voted on. |
 | `Characters` | Character metadata (key + alignment). |
 
-Types are exported as `TAvalon`, `TQuest`, `TTeam`, `TRule`, `TCharacterKey`, `TAlignment`.
+Types are exported as `TAvalon`, `TQuest`, `TQuestVote`, `TTeam`, `TRule`, `TCharacterKey`, `TAlignment`.
+
+The `Update*` / `Set*` / `Assassinate` functions mutate `game` in place and return nothing. They validate their input before changing anything, so a call that throws an `AvalonError` leaves a game produced by this library unchanged. Arrays you pass in are copied, never stored by reference.
 
 ## Error Handling
 
@@ -104,6 +106,8 @@ The `code` field is typed as `TAvalonErrorCode`:
 | --- | --- |
 | `INVALID_LANCELOT_RULE` | `DefaultRuleForNumberOfPlayer` receives an unknown lancelot rule string. |
 | `NO_RULE_FOR_PLAYER_COUNT` | No preset matches the requested `numberOfPlayer` / lancelot combination. |
+| `INVALID_RULE` | `CreateAvalon` received an inconsistent rule (character count ≠ `numberOfPlayer`, unknown character key, not exactly 5 quests, invalid quest size or team cap). `details.reason` says which. |
+| `INVALID_CUSTOM_CHARACTERS` | `customCharacters` does not have exactly `numberOfPlayer` entries, or contains an unknown character key. |
 | `INVALID_LANCELOT_CONFIG` | `CreateAvalon` called with an invalid lancelot rule, or lancelot enabled with fewer than 7 players. |
 | `INVALID_FIRST_LEADER` | `CreateAvalon`'s `firstLeader` is not an integer in `[0, numberOfPlayer)`. |
 | `INVALID_LEADER` | `CreateQuests` (internal) given a leader seat outside `[0, numberOfPlayer)`. |
@@ -114,17 +118,47 @@ The `code` field is typed as `TAvalonErrorCode`:
 | `NO_LAST_FINISHED_QUEST` | `SetNextLadyOfTheLake` called with no finished quest yet. |
 | `CANNOT_CREATE_NEW_TEAM` | The team-proposal cap has been reached. |
 | `INVALID_TEAM_MEMBER_COUNT` | Team size doesn't match the quest's `numberOfMembers`. |
-| `INVALID_TEAM_MEMBER` | A proposed member seat is not a valid player index. |
+| `INVALID_TEAM_MEMBER` | A proposed member seat is not an integer player index. |
+| `DUPLICATE_TEAM_MEMBER` | The same seat appears more than once in a proposed team. |
+| `TEAM_NOT_PROPOSED` | `UpdateRecentTeamVote` was called before the leader proposed the team. |
 | `INVALID_VOTE_COUNT` | Number of votes doesn't match what the stage expects. |
-| `INVALID_VOTER` | A vote references a non-existent player seat. |
+| `INVALID_VOTE` | A team or quest vote value is not a boolean. |
+| `INVALID_VOTER` | A vote references a seat that may not vote: not a player (team vote) or not a team member (per-player quest vote). |
 | `DUPLICATE_VOTER` | The same player appears more than once in a vote payload. |
 | `INVALID_LADY_OF_THE_LAKE` | `SetNextLadyOfTheLake` target is not in `[0, numberOfPlayer)`. |
 | `LADY_OF_THE_LAKE_ALREADY_HELD` | The chosen player has already held Lady of the Lake. |
-| `EXCALIBUR_DISABLED` | `SetExcalibur` called when `rule.enableExcalibur` is false. |
-| `EXCALIBUR_NOT_TEAM_MEMBER` | Excalibur target is not a member of the current team. |
-| `EXCALIBUR_IS_LEADER` | Excalibur target is the team leader (not allowed). |
+| `EXCALIBUR_DISABLED` | `SetExcalibur` called, or an `excaliburTarget` passed, when `rule.enableExcalibur` is false. |
+| `EXCALIBUR_NOT_TEAM_MEMBER` | The Excalibur holder passed to `SetExcalibur` is not a member of the current team. |
+| `EXCALIBUR_IS_LEADER` | The Excalibur holder passed to `SetExcalibur` is the team leader (not allowed). |
+| `EXCALIBUR_NOT_ASSIGNED` | An `excaliburTarget` was passed but nobody on the team holds Excalibur. |
+| `INVALID_EXCALIBUR_TARGET` | The `excaliburTarget` is not on the team, or is the Excalibur holder. |
 | `INVALID_ASSASSINATION_TARGET` | `Assassinate` target is not a valid player seat. |
 | `MISSING_LANCELOT_SWITCH` | Internal: lancelot switch array is missing for an active lancelot rule. |
+
+## Excalibur
+
+The leader hands Excalibur to another team member with `SetExcalibur(game, rule, holder)` while proposing the team. After the quest cards are played, the holder may switch one other team member's card; pass that member as `excaliburTarget` to `UpdateRecentQuestVote`. `votes` can take two forms:
+
+- **`TQuestVote[]` (recommended)**: one `{ player, vote }` per team member. The engine checks that each team member voted exactly once, switches the target's card, records the original card in `quest.excaliburOriginalVote`, and stores `quest.result.votes` without seats (successes first), so the game state never reveals who played which card.
+- **`boolean[]`**: the final cards, with Excalibur already applied by the caller. The engine only validates and records `excaliburTarget`.
+
+```typescript
+SetExcalibur(game, rule, 3);
+// ...team approved; seat 3 uses Excalibur on seat 5
+UpdateRecentQuestVote(game, rule, [
+  { player: 1, vote: true },
+  { player: 3, vote: true },
+  { player: 5, vote: false },
+], 5);
+```
+
+## Lancelot Rules
+
+| Rule | Behaviour |
+| --- | --- |
+| `rule1` | A shuffled pile of 5 cards (2 switch / 3 no-switch). From the third quest on, one card is revealed for **every team proposal**, re-proposals after a rejected vote included. Once all 5 cards are revealed, there are no more switches. |
+| `rule2` | A shuffled pile of 7 cards (2 switch / 5 no-switch) truncated to 5. One card is revealed at the start of every quest, starting with the first. |
+| `rule3` | Lancelots never switch, but can see each other at the start of the game. |
 
 ## Game Stages
 
@@ -132,8 +166,8 @@ The `code` field is typed as `TAvalonErrorCode`:
 team ─► quest ─► team       (quest finished, more quests to play)
               ─► ladyOfTheLake ─► team
               ─► assassinate ─► end
-              ─► end           (3 fails)
-team ─► end                    (5 rejected team votes)
+              ─► end           (3 fails, or the team-proposal cap is exhausted)
+team ─► end                    (team-proposal cap reached, i.e. 5 rejected team votes by default)
 ```
 
 ## Scripts

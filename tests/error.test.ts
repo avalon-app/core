@@ -2,6 +2,7 @@ import {
     Assassinate, ChangeToAssassinate, Create, SetExcalibur, SetNextLadyOfTheLake, UpdateRecentQuestVote,
     UpdateRecentTeamMember, UpdateRecentTeamVote
 } from "../src/avalon"
+import { TCharacterKey } from "../src/character"
 import { AvalonError, TAvalonErrorCode } from "../src/error"
 import { CreateNextTeam, CreateQuests, TTeam } from "../src/quest"
 import { defaultRuleForNumberOfPlayer, TRule } from "../src/rule"
@@ -80,6 +81,20 @@ describe("error codes from avalon.ts Create", () => {
         expectAvalonError(() => Create(rule, undefined, rule.numberOfPlayer), "INVALID_FIRST_LEADER")
         expectAvalonError(() => Create(rule, undefined, 1.5), "INVALID_FIRST_LEADER")
     })
+    it("INVALID_RULE", () => {
+        const rule = defaultRuleForNumberOfPlayer(5)
+        expectAvalonError(() => Create({ ...rule, characters: rule.characters.slice(1) }), "INVALID_RULE")
+        expectAvalonError(() => Create({ ...rule, characters: [...rule.characters.slice(1), "bogus" as TCharacterKey] }), "INVALID_RULE")
+        expectAvalonError(() => Create({ ...rule, quest: { ...rule.quest, each: rule.quest.each.slice(1) } }), "INVALID_RULE")
+        expectAvalonError(() => Create({ ...rule, quest: { ...rule.quest, each: rule.quest.each.map(q => ({ ...q, numberOfMembers: 6 })) } }), "INVALID_RULE")
+        expectAvalonError(() => Create({ ...rule, quest: { ...rule.quest, team: { ...rule.quest.team, maxCountOfSummonTeam: 0 } } }), "INVALID_RULE")
+    })
+    it("INVALID_CUSTOM_CHARACTERS", () => {
+        const rule = defaultRuleForNumberOfPlayer(5)
+        expectAvalonError(() => Create(rule, ["merlin", "percival", "loyalServant", "morgana"]), "INVALID_CUSTOM_CHARACTERS")
+        expectAvalonError(() => Create(rule, []), "INVALID_CUSTOM_CHARACTERS")
+        expectAvalonError(() => Create(rule, ["merlin", "percival", "loyalServant", "morgana", "bogus" as TCharacterKey]), "INVALID_CUSTOM_CHARACTERS")
+    })
 })
 
 describe("error codes from UpdateRecentTeamMember", () => {
@@ -99,6 +114,15 @@ describe("error codes from UpdateRecentTeamMember", () => {
         const game = Create(rule)
         expectAvalonError(() => UpdateRecentTeamMember(game, [0, 99]), "INVALID_TEAM_MEMBER")
         expectAvalonError(() => UpdateRecentTeamMember(game, [0, -1]), "INVALID_TEAM_MEMBER")
+        expectAvalonError(() => UpdateRecentTeamMember(game, [0, 0.5]), "INVALID_TEAM_MEMBER")
+        expectAvalonError(() => UpdateRecentTeamMember(game, [0, NaN]), "INVALID_TEAM_MEMBER")
+        expect(game.quests[0].teams[0].members).toEqual([])
+    })
+    it("DUPLICATE_TEAM_MEMBER", () => {
+        const rule = defaultRuleForNumberOfPlayer(5)
+        const game = Create(rule)
+        expectAvalonError(() => UpdateRecentTeamMember(game, [0, 0]), "DUPLICATE_TEAM_MEMBER")
+        expect(game.quests[0].teams[0].members).toEqual([])
     })
 })
 
@@ -108,6 +132,13 @@ describe("error codes from UpdateRecentTeamVote", () => {
         const game = Create(rule)
         ChangeToAssassinate(game)
         expectAvalonError(() => UpdateRecentTeamVote(game, rule, teamVotes(rule.numberOfPlayer, true)), "INVALID_STAGE")
+    })
+    it("TEAM_NOT_PROPOSED", () => {
+        const rule = defaultRuleForNumberOfPlayer(5)
+        const game = Create(rule)
+        expectAvalonError(() => UpdateRecentTeamVote(game, rule, teamVotes(rule.numberOfPlayer, true)), "TEAM_NOT_PROPOSED")
+        expect(game.stage).toBe("team")
+        expect(game.quests[0].teams[0].votes).toEqual([])
     })
     it("INVALID_VOTE_COUNT", () => {
         const rule = defaultRuleForNumberOfPlayer(5)
@@ -135,6 +166,14 @@ describe("error codes from UpdateRecentTeamVote", () => {
         ]
         expectAvalonError(() => UpdateRecentTeamVote(game, rule, votes), "DUPLICATE_VOTER")
     })
+    it("INVALID_VOTE", () => {
+        const rule = defaultRuleForNumberOfPlayer(5)
+        const game = Create(rule)
+        UpdateRecentTeamMember(game, [0, 1])
+        const votes = teamVotes(rule.numberOfPlayer, true).map((v, i) => i === 0 ? { ...v, vote: "false" as unknown as boolean } : v)
+        expectAvalonError(() => UpdateRecentTeamVote(game, rule, votes), "INVALID_VOTE")
+        expect(game.stage).toBe("team")
+    })
 })
 
 describe("error codes from UpdateRecentQuestVote", () => {
@@ -149,6 +188,56 @@ describe("error codes from UpdateRecentQuestVote", () => {
         UpdateRecentTeamMember(game, [0, 1])
         UpdateRecentTeamVote(game, rule, teamVotes(rule.numberOfPlayer, true))
         expectAvalonError(() => UpdateRecentQuestVote(game, rule, [true]), "INVALID_VOTE_COUNT")
+    })
+    it("INVALID_VOTE", () => {
+        const rule = defaultRuleForNumberOfPlayer(5)
+        const game = Create(rule)
+        UpdateRecentTeamMember(game, [0, 1])
+        UpdateRecentTeamVote(game, rule, teamVotes(rule.numberOfPlayer, true))
+        expectAvalonError(() => UpdateRecentQuestVote(game, rule, [true, "false" as unknown as boolean]), "INVALID_VOTE")
+        expect(game.stage).toBe("quest")
+        expect(game.quests[0].state).toBe("inProgress")
+    })
+})
+
+describe("error codes from UpdateRecentQuestVote (Excalibur and per-player votes)", () => {
+    const approvedTeam = (enableExcalibur: boolean, holder?: number) => {
+        const base = defaultRuleForNumberOfPlayer(5)
+        const rule: TRule = enableExcalibur ? { ...base, enableExcalibur: true } : base
+        const game = Create(rule, undefined, 0)
+        UpdateRecentTeamMember(game, [0, 1])
+        if (holder !== undefined) {
+            SetExcalibur(game, rule, holder)
+        }
+        UpdateRecentTeamVote(game, rule, teamVotes(rule.numberOfPlayer, true))
+        return { game, rule }
+    }
+    it("EXCALIBUR_DISABLED", () => {
+        const { game, rule } = approvedTeam(false)
+        const snapshot = JSON.stringify(game)
+        expectAvalonError(() => UpdateRecentQuestVote(game, rule, [true, true], 0), "EXCALIBUR_DISABLED")
+        expect(JSON.stringify(game)).toBe(snapshot)
+    })
+    it("EXCALIBUR_NOT_ASSIGNED", () => {
+        const { game, rule } = approvedTeam(true)
+        expectAvalonError(() => UpdateRecentQuestVote(game, rule, [true, true], 0), "EXCALIBUR_NOT_ASSIGNED")
+    })
+    it("INVALID_EXCALIBUR_TARGET", () => {
+        const { game, rule } = approvedTeam(true, 1)
+        const snapshot = JSON.stringify(game)
+        // The holder cannot target themselves, nor anyone outside the team.
+        expectAvalonError(() => UpdateRecentQuestVote(game, rule, [true, true], 1), "INVALID_EXCALIBUR_TARGET")
+        expectAvalonError(() => UpdateRecentQuestVote(game, rule, [{ player: 0, vote: true }, { player: 1, vote: true }], 3), "INVALID_EXCALIBUR_TARGET")
+        expect(JSON.stringify(game)).toBe(snapshot)
+    })
+    it("INVALID_VOTER / DUPLICATE_VOTER / INVALID_VOTE for per-player votes", () => {
+        const { game, rule } = approvedTeam(false)
+        const snapshot = JSON.stringify(game)
+        expectAvalonError(() => UpdateRecentQuestVote(game, rule, [{ player: 0, vote: true }, { player: 3, vote: true }]), "INVALID_VOTER")
+        expectAvalonError(() => UpdateRecentQuestVote(game, rule, [{ player: 0, vote: true }, { player: 0, vote: true }]), "DUPLICATE_VOTER")
+        expectAvalonError(() => UpdateRecentQuestVote(game, rule, [{ player: 0, vote: true }, { player: 1, vote: "true" as unknown as boolean }]), "INVALID_VOTE")
+        expectAvalonError(() => UpdateRecentQuestVote(game, rule, [true, { player: 1, vote: true }] as unknown as boolean[]), "INVALID_VOTE")
+        expect(JSON.stringify(game)).toBe(snapshot)
     })
 })
 
@@ -170,6 +259,36 @@ describe("error codes from SetNextLadyOfTheLake", () => {
         UpdateRecentQuestVote(game, rule, [true, true, true])
         expect(game.stage).toBe("ladyOfTheLake")
         expectAvalonError(() => SetNextLadyOfTheLake(game, rule, -1), "INVALID_LADY_OF_THE_LAKE")
+    })
+    it("CANNOT_CREATE_NEW_TEAM leaves the state untouched", () => {
+        const rule = defaultRuleForNumberOfPlayer(5)
+        rule.hasLadyOfTheLake = true
+        const game = Create(rule)
+        UpdateRecentTeamMember(game, [0, 1])
+        UpdateRecentTeamVote(game, rule, teamVotes(rule.numberOfPlayer, true))
+        UpdateRecentQuestVote(game, rule, [true, true])
+        UpdateRecentTeamMember(game, [0, 1, 2])
+        UpdateRecentTeamVote(game, rule, teamVotes(rule.numberOfPlayer, true))
+        UpdateRecentQuestVote(game, rule, [true, true, true])
+        expect(game.stage).toBe("ladyOfTheLake")
+
+        // A state whose proposal cap is already exhausted (e.g. restored from elsewhere).
+        const exhausted: TRule = { ...rule, quest: { ...rule.quest, team: { mode: "whole", maxCountOfSummonTeam: 2 } } }
+        const target = (game.quests[1].ladyOfTheLake! + 1) % rule.numberOfPlayer
+        const snapshot = JSON.stringify(game)
+        expectAvalonError(() => SetNextLadyOfTheLake(game, exhausted, target), "CANNOT_CREATE_NEW_TEAM")
+        expect(JSON.stringify(game)).toBe(snapshot)
+    })
+})
+
+describe("error codes from ChangeToAssassinate", () => {
+    it("INVALID_STAGE (game already ended)", () => {
+        const rule = defaultRuleForNumberOfPlayer(5)
+        const game = Create(rule)
+        ChangeToAssassinate(game)
+        Assassinate(game, 0)
+        expect(game.stage).toBe("end")
+        expectAvalonError(() => ChangeToAssassinate(game), "INVALID_STAGE")
     })
 })
 
@@ -235,7 +354,10 @@ describe("error codes from updateLancelotAlignment", () => {
         // Trigger the lancelot alignment code path via a team-vote rejection.
         UpdateRecentTeamMember(game, [0, 1])
         const rejectVotes: TTeam["votes"] = teamVotes(rule.numberOfPlayer, false)
+        const snapshot = JSON.stringify(game)
         expectAvalonError(() => UpdateRecentTeamVote(game, rule, rejectVotes), "MISSING_LANCELOT_SWITCH")
+        // The error is raised before any mutation, so the game is not left half-updated.
+        expect(JSON.stringify(game)).toBe(snapshot)
     })
 })
 

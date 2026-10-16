@@ -37,6 +37,13 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # Never publish a version that fails typecheck or tests, even if CI is still running in parallel.
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
       - name: Build
         run: pnpm build
 

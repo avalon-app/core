@@ -73,6 +73,23 @@ describe('defaultRuleForNumberOfPlayer', () => {
         expect(defaultRuleForNumberOfPlayer(7)).toEqual(expectedRule);
     });
 
+    it('should return an independent copy so mutating one rule never pollutes later presets', () => {
+        const first = defaultRuleForNumberOfPlayer(7, "rule3")
+        first.characters[0] = "minion"
+        first.quest.each[0].numberOfMembers = 99
+        first.characterVisibilitiesRules[0].canSee.push("mordred")
+        first.characterVisibilitiesRules[2].canSeeCharacter!.push("oberon")
+        first.characterVisibilitiesRules[3].characters.pop()
+
+        const second = defaultRuleForNumberOfPlayer(7, "rule3")
+        expect(second.characters[0]).toBe("merlin")
+        expect(second.quest.each[0].numberOfMembers).toBe(2)
+        expect(second.characterVisibilitiesRules[0].canSee).not.toContain("mordred")
+        expect(second.characterVisibilitiesRules[2].canSeeCharacter).toEqual(["lancelot_evil"])
+        expect(second.characterVisibilitiesRules[3].characters).toEqual(["lancelot_good", "lancelot_evil"])
+        expect(defaultRuleForNumberOfPlayer(8).characterVisibilitiesRules[0].canSee).not.toContain("mordred")
+    });
+
     it('should throw undefined for an unsupported number of players', () => {
         expect(() => {
             defaultRuleForNumberOfPlayer(4)

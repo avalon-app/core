@@ -1,23 +1,16 @@
 import { randomArray } from '../src/tools';
-test('random array', () => {
+test('random array is uniformly distributed', () => {
     const arr = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-    const resultMap: number[][] = []
+    const resultMap: number[][] = arr.map(() => arr.map(() => 0))
     const testCount = 10000
     for (let i = 0; i < testCount; i++) {
-        const result = randomArray(arr)
-        result.map((item, idx) => {
-            if (!resultMap[idx]) {
-                resultMap[idx] = []
-            }
-
-            resultMap[idx][item] = (resultMap[idx][item] || 0) + 1
+        randomArray(arr).forEach((item, idx) => {
+            resultMap[idx][item]++
         })
     }
-    const resultDisplay = resultMap.map(item => {
-        return item.map((count) => {
-            return (count / testCount * 100).toFixed(2) + '%'
-        })
-    })
-
-    console.table(resultDisplay)
+    // Each item should land on each position ~10% of the time; ±2.5% is > 8σ, so this never flakes.
+    const expected = 1 / arr.length
+    resultMap.forEach(position => position.forEach(count => {
+        expect(Math.abs(count / testCount - expected)).toBeLessThan(0.025)
+    }))
 });

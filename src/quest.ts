@@ -34,6 +34,11 @@ export type TQuest = {
      */
     excaliburTarget?: number
     /**
+     * The targeted player's card before Excalibur switched it.
+     * Only known when the quest votes were submitted per player (see `TQuestVote`).
+     */
+    excaliburOriginalVote?: boolean
+    /**
      * The result of the quest.
      */
     result?: {
@@ -68,6 +73,15 @@ export type TTeam = {
      * The seat number of the player own Excalibur.
      */
     excalibur?: number
+}
+
+/**
+ * A quest card played by a team member (`true` = success).
+ * Submitting quest votes in this form lets the engine apply Excalibur itself.
+ */
+export type TQuestVote = {
+    player: number
+    vote: boolean
 }
 
 /**

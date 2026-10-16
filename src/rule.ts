@@ -1,4 +1,4 @@
-import { TCharacterKey } from './character';
+import { Characters, TCharacterKey } from './character';
 import { AvalonError } from './error';
 import { randomArray } from './tools';
 
@@ -91,8 +91,9 @@ export type TRule = {
     /**
      * The rule for Lancelot.
      *
-     * - `rule1`: Lancelots may switch alignment starting at the beginning of the third quest,
-     *   driven by a shuffled card pile of 2 swaps / 3 no-swaps.
+     * - `rule1`: Lancelots may switch alignment starting at the third quest, driven by a shuffled card pile
+     *   of 2 swaps / 3 no-swaps. One card is revealed for every team proposal from the third quest on
+     *   (re-proposals after a rejected vote included); once all 5 cards are revealed there are no more switches.
      * - `rule2`: Lancelots may switch alignment starting at the beginning of the game,
      *   driven by a shuffled pile of 2 swaps / 5 no-swaps (truncated to 5).
      * - `rule3`: Lancelots never switch alignment but can see each other at the start of the game.
@@ -101,10 +102,10 @@ export type TRule = {
 }
 
 /**
- * Generates a random boolean value based on a predefined array.
- * The array contains two `true` values and three `false` values.
- * 
- * @returns {boolean} A randomly selected boolean value from the array.
+ * Generates the shuffled Lancelot switch pile for rule1.
+ * The pile contains two `true` (switch) values and three `false` (no switch) values.
+ *
+ * @returns {boolean[]} The 5 shuffled switch cards.
  */
 export const RandomLancelotSwitchForRule1 = () => {
     return randomArray([true, true, false, false, false])
@@ -124,6 +125,47 @@ export const RandomLancelotSwitchForRule2 = () => {
 
 export const isLancelot = (character: TCharacterKey) => {
     return character === "lancelot_good" || character === "lancelot_evil"
+}
+
+const characterKeys = new Set<string>(Characters.map(c => c.key))
+
+/**
+ * Checks whether a value is a known character key.
+ */
+export const isCharacterKey = (key: unknown): key is TCharacterKey => {
+    return typeof key === "string" && characterKeys.has(key)
+}
+
+/**
+ * Validates the structural consistency of a rule, so a hand-built rule cannot produce a broken game.
+ *
+ * @throws {AvalonError} `INVALID_RULE` with a `reason` in `details` when the rule is inconsistent.
+ */
+export const validateRule = (rule: TRule) => {
+    const invalid = (reason: string, details?: Record<string, unknown>) => {
+        throw new AvalonError("INVALID_RULE", `Invalid rule: ${reason}`, { reason, ...details })
+    }
+    const { numberOfPlayer, characters, quest } = rule
+    if (!Number.isInteger(numberOfPlayer) || numberOfPlayer < 1) {
+        invalid("numberOfPlayer must be a positive integer", { numberOfPlayer })
+    }
+    if (characters.length !== numberOfPlayer) {
+        invalid("characters length must equal numberOfPlayer", { numberOfPlayer, numberOfCharacters: characters.length })
+    }
+    const unknownCharacters = characters.filter(key => !isCharacterKey(key))
+    if (unknownCharacters.length) {
+        invalid("characters contain unknown keys", { unknownCharacters })
+    }
+    if (quest.each.length !== 5) {
+        invalid("there must be exactly 5 quests", { numberOfQuests: quest.each.length })
+    }
+    const invalidQuests = quest.each.flatMap((q, idx) => Number.isInteger(q.numberOfMembers) && q.numberOfMembers >= 1 && q.numberOfMembers <= numberOfPlayer ? [] : [idx])
+    if (invalidQuests.length) {
+        invalid("quest numberOfMembers must be an integer in [1, numberOfPlayer]", { invalidQuests })
+    }
+    if (!Number.isInteger(quest.team.maxCountOfSummonTeam) || quest.team.maxCountOfSummonTeam < 1) {
+        invalid("maxCountOfSummonTeam must be a positive integer", { maxCountOfSummonTeam: quest.team.maxCountOfSummonTeam })
+    }
 }
 /**
  * The default visibility rules for the characters.
@@ -173,22 +215,31 @@ export const defaultRuleForNumberOfPlayer = (numberOfPlayer: number, lancelotRul
             { numberOfPlayer, lancelotRule }
         )
     }
+    const visibilityRules = lancelotRule === "rule3" ? [...defaultVisibilityRules, lancelotVisibilityRule] : defaultVisibilityRules
+    /// Every nested array/object is copied so that mutating a returned rule never leaks into the shared presets.
     const result: TRule = {
         assassin: rule.assassinate || "assassin",
-        characters: rule.characters,
+        characters: [...rule.characters],
         numberOfPlayer,
         lancelot: lancelotRule,
-        characterVisibilitiesRules: lancelotRule === "rule3" ? [...defaultVisibilityRules, lancelotVisibilityRule] : defaultVisibilityRules,
+        characterVisibilitiesRules: visibilityRules.map(cloneVisibilityRule),
         quest: {
             team: {
                 maxCountOfSummonTeam: 5,
                 mode: "each"
             },
-            each: rule.quests
+            each: rule.quests.map(q => ({ ...q }))
         }
     }
     return result
 }
+
+const cloneVisibilityRule = (rule: TVisibilityRule): TVisibilityRule => ({
+    ...rule,
+    characters: [...rule.characters],
+    canSee: [...rule.canSee],
+    ...(rule.canSeeCharacter ? { canSeeCharacter: [...rule.canSeeCharacter] } : {})
+})
 
 type TInnerRule = {
     numberOfPlayer: number;

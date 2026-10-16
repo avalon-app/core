@@ -1,4 +1,5 @@
 import { Create, UpdateRecentTeamMember, UpdateRecentTeamVote, UpdateRecentQuestVote, SetNextLadyOfTheLake, SetExcalibur, TAvalon, Assassinate, ChangeToAssassinate } from "../src/avalon"
+import { TCharacterKey } from "../src/character"
 import { AvalonError, TAvalonErrorCode } from "../src/error"
 import { CanCreateNewTeam, TTeam } from "../src/quest"
 import { defaultRuleForNumberOfPlayer, TRule } from "../src/rule"
@@ -249,6 +250,37 @@ describe("Avalon Game", () => {
 
     })
 
+    it("lancelot rule1 reveals one card per team proposal from the third quest on, until the pile runs out", () => {
+        const rule = defaultRuleForNumberOfPlayer(7, "rule1")
+        const game = Create(rule)
+        game.lancelotSwitch = [true, false, false, false, true]
+        const lancelotGood = game.players.find(player => player.key === "lancelot_good")!
+        const reject = createTeamVotes(rule.numberOfPlayer, false)
+        const approve = createTeamVotes(rule.numberOfPlayer, true)
+
+        runQuest(game, rule, [
+            { member: [0, 1], teamVotes: approve, questVotes: [true, true] },
+            { member: [0, 1, 2], teamVotes: approve, questVotes: [true, true, true] },
+        ])
+        // Quest 3, proposal 1 reveals card #1 (switch).
+        expect(lancelotGood.alignment).toBe("evil")
+        // Quest 3, proposals 2-4 reveal cards #2-#4 (no switch) — the switch persists within the quest.
+        runQuest(game, rule, [
+            { member: [0, 1, 2], teamVotes: reject },
+            { member: [0, 1, 2], teamVotes: reject },
+            { member: [0, 1, 2], teamVotes: reject },
+        ])
+        expect(game.quests[2].teams).toHaveLength(4)
+        expect(lancelotGood.alignment).toBe("evil")
+        // Finishing quest 3 starts quest 4, whose first proposal is the 5th since quest 3: card #5 (switch back).
+        runQuest(game, rule, [{ member: [0, 1, 2], teamVotes: approve, questVotes: [false, false, false] }])
+        expect(lancelotGood.alignment).toBe("good")
+        // The pile is exhausted: further proposals never switch again.
+        runQuest(game, rule, [{ member: [0, 1, 2, 3], teamVotes: reject }])
+        expect(game.quests[3].teams).toHaveLength(2)
+        expect(lancelotGood.alignment).toBe("good")
+    })
+
     it("test lancelet switch rule2", () => {
         const rule = defaultRuleForNumberOfPlayer(7, "rule2")
         const game = Create(rule)
@@ -354,6 +386,49 @@ describe("Avalon Game", () => {
         expect(game.quests[0].teams[0].excalibur).toBe(nonLeaderMember)
     })
 
+    describe("Excalibur during the quest vote", () => {
+        const approvedTeam = (holder?: number) => {
+            const rule: TRule = { ...defaultRuleForNumberOfPlayer(5), enableExcalibur: true }
+            const game = Create(rule, undefined, 0)
+            UpdateRecentTeamMember(game, [0, 1])
+            if (holder !== undefined) {
+                SetExcalibur(game, rule, holder)
+            }
+            UpdateRecentTeamVote(game, rule, createTeamVotes(rule.numberOfPlayer, true))
+            return { game, rule }
+        }
+
+        it("per-player votes: the engine switches the target's card and records the original", () => {
+            const { game, rule } = approvedTeam(1)
+            UpdateRecentQuestVote(game, rule, [{ player: 0, vote: false }, { player: 1, vote: true }], 0)
+            expect(game.quests[0].result).toEqual({ success: true, votes: [true, true] })
+            expect(game.quests[0].excaliburTarget).toBe(0)
+            expect(game.quests[0].excaliburOriginalVote).toBe(false)
+        })
+
+        it("per-player votes: stored cards drop the seats (successes first)", () => {
+            const { game, rule } = approvedTeam()
+            UpdateRecentQuestVote(game, rule, [{ player: 0, vote: false }, { player: 1, vote: true }])
+            expect(game.quests[0].result).toEqual({ success: false, votes: [true, false] })
+            expect(game.quests[0].excaliburTarget).toBeUndefined()
+            expect(game.quests[0].excaliburOriginalVote).toBeUndefined()
+        })
+
+        it("boolean[] votes: taken as final cards, Excalibur only recorded", () => {
+            const { game, rule } = approvedTeam(1)
+            UpdateRecentQuestVote(game, rule, [false, true], 0)
+            expect(game.quests[0].result).toEqual({ success: false, votes: [false, true] })
+            expect(game.quests[0].excaliburTarget).toBe(0)
+            expect(game.quests[0].excaliburOriginalVote).toBeUndefined()
+        })
+
+        it("a null target means Excalibur was not used", () => {
+            const { game, rule } = approvedTeam()
+            UpdateRecentQuestVote(game, rule, [true, true], null as unknown as number)
+            expect(game.quests[0].excaliburTarget).toBeUndefined()
+        })
+    })
+
     it("UpdateRecentTeamVote rejects duplicate or invalid voters", () => {
         const rule = defaultRuleForNumberOfPlayer(5)
         const game = Create(rule)
@@ -416,5 +491,126 @@ describe("Avalon Game", () => {
         UpdateRecentTeamVote(game, wholeRule, createTeamVotes(wholeRule.numberOfPlayer, false))
         expect(game.result).toBe("evilWin")
         expect(game.stage).toBe("end")
+    })
+
+    it("deals custom characters seat by seat", () => {
+        const rule = defaultRuleForNumberOfPlayer(5)
+        const custom: TCharacterKey[] = ["assassin", "merlin", "morgana", "percival", "loyalServant"]
+        const game = Create(rule, custom, 2)
+        expect(game.players.map(p => p.key)).toEqual(custom)
+        expect(game.quests[0].teams[0].leader).toBe(2)
+    })
+
+    it("stores copies of caller-provided arrays", () => {
+        const rule = defaultRuleForNumberOfPlayer(5)
+        const game = Create(rule)
+        const members = [0, 1]
+        UpdateRecentTeamMember(game, members)
+        members.push(2)
+        const teamVotes = createTeamVotes(rule.numberOfPlayer, true)
+        UpdateRecentTeamVote(game, rule, teamVotes)
+        teamVotes[0].vote = false
+        const questVotes = [true, true]
+        UpdateRecentQuestVote(game, rule, questVotes)
+        questVotes[0] = false
+
+        expect(game.quests[0].teams[0].members).toEqual([0, 1])
+        expect(game.quests[0].teams[0].votes[0].vote).toBe(true)
+        expect(game.quests[0].result?.votes).toEqual([true, true])
+    })
+
+    it("uses the quest snapshot, not the passed rule, for quest size and failure threshold", () => {
+        const rule = defaultRuleForNumberOfPlayer(7)
+        const game = Create(rule)
+        const drifted: TRule = { ...rule, quest: { ...rule.quest, each: rule.quest.each.map(q => ({ numberOfMembers: q.numberOfMembers + 1 })) } }
+        runQuest(game, rule, [
+            { member: [0, 1], teamVotes: createTeamVotes(rule.numberOfPlayer, true), questVotes: [true, true] },
+            { member: [0, 1, 2], teamVotes: createTeamVotes(rule.numberOfPlayer, true), questVotes: [true, true, true] },
+            { member: [0, 1, 2], teamVotes: createTeamVotes(rule.numberOfPlayer, true), questVotes: [false, false, false] },
+        ])
+        UpdateRecentTeamMember(game, [0, 1, 2, 3])
+        UpdateRecentTeamVote(game, rule, createTeamVotes(rule.numberOfPlayer, true))
+        // Quest 4 of 7 players needs two failures; a single failure still succeeds.
+        UpdateRecentQuestVote(game, drifted, [true, true, true, false])
+        expect(game.quests[3].result?.success).toBe(true)
+    })
+
+    it("ChangeToAssassinate cannot overturn a finished game", () => {
+        const rule = defaultRuleForNumberOfPlayer(5)
+        const game = Create(rule)
+        runQuest(game, rule, [{
+            member: [0, 1],
+            teamVotes: createTeamVotes(rule.numberOfPlayer, true),
+            questVotes: [false, false]
+        }, {
+            member: [2, 3, 1],
+            teamVotes: createTeamVotes(rule.numberOfPlayer, true),
+            questVotes: [false, false, false]
+        }, {
+            member: [4, 1],
+            teamVotes: createTeamVotes(rule.numberOfPlayer, true),
+            questVotes: [false, false]
+        }])
+        expect(game.result).toBe("evilWin")
+
+        expectAvalonError(() => ChangeToAssassinate(game), "INVALID_STAGE")
+        expectAvalonError(() => Assassinate(game, game.players.findIndex(p => p.key !== "merlin")), "INVALID_STAGE")
+        expect(game.stage).toBe("end")
+        expect(game.result).toBe("evilWin")
+    })
+
+    it("whole mode: cap exhausted when a quest finishes ends the game instead of corrupting it", () => {
+        const rule = defaultRuleForNumberOfPlayer(5)
+        const wholeRule: TRule = { ...rule, quest: { ...rule.quest, team: { maxCountOfSummonTeam: 5, mode: "whole" } } }
+        const game = Create(wholeRule)
+        for (let i = 0; i < 4; i++) {
+            UpdateRecentTeamMember(game, [0, 1])
+            UpdateRecentTeamVote(game, wholeRule, createTeamVotes(wholeRule.numberOfPlayer, false))
+        }
+        UpdateRecentTeamMember(game, [0, 1])
+        UpdateRecentTeamVote(game, wholeRule, createTeamVotes(wholeRule.numberOfPlayer, true))
+
+        expect(() => UpdateRecentQuestVote(game, wholeRule, [true, true])).not.toThrow()
+        expect(game.stage).toBe("end")
+        expect(game.result).toBe("evilWin")
+        expect(game.quests[0].state).toBe("finished")
+        expect(game.quests[0].teams[4].members).toEqual([0, 1])
+        expect(game.quests[1].state).toBe("notStarted")
+        expect(game.quests[1].teams).toEqual([])
+    })
+
+    it("whole mode: cap exhausted before Lady of the Lake ends the game instead of entering ladyOfTheLake", () => {
+        const rule = defaultRuleForNumberOfPlayer(5)
+        const wholeRule: TRule = { ...rule, hasLadyOfTheLake: true, quest: { ...rule.quest, team: { maxCountOfSummonTeam: 2, mode: "whole" } } }
+        const game = Create(wholeRule)
+        runQuest(game, wholeRule, [{
+            member: [0, 1],
+            teamVotes: createTeamVotes(wholeRule.numberOfPlayer, true),
+            questVotes: [true, true]
+        }, {
+            member: [2, 3, 1],
+            teamVotes: createTeamVotes(wholeRule.numberOfPlayer, true),
+            questVotes: [true, true, true]
+        }])
+        expect(game.stage).toBe("end")
+        expect(game.result).toBe("evilWin")
+    })
+
+    it("team writes never touch a finished quest's team", () => {
+        const rule: TRule = { ...defaultRuleForNumberOfPlayer(5), enableExcalibur: true }
+        const game = Create(rule)
+        runQuest(game, rule, [{
+            member: [0, 1],
+            teamVotes: createTeamVotes(rule.numberOfPlayer, true),
+            questVotes: [true, true]
+        }])
+        const history = JSON.stringify(game.quests[0])
+        // Simulate an in-progress quest that has no team yet (e.g. a hand-edited or restored state).
+        game.quests[1].teams = []
+
+        expectAvalonError(() => UpdateRecentTeamMember(game, [2, 3, 4]), "NO_TEAM_IN_PROGRESS")
+        expectAvalonError(() => UpdateRecentTeamVote(game, rule, createTeamVotes(rule.numberOfPlayer, true)), "NO_TEAM_IN_PROGRESS")
+        expectAvalonError(() => SetExcalibur(game, rule, 1), "NO_RECENT_TEAM")
+        expect(JSON.stringify(game.quests[0])).toBe(history)
     })
 })
